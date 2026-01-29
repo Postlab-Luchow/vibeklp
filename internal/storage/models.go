@@ -52,8 +52,10 @@ func (v *Venue) Validate() error {
 	if v.Name == "" {
 		return errors.New("venue name is required")
 	}
-	if v.Address.PostalCode == "" {
-		return errors.New("postal code is required")
+	// Postal code is not strictly required anymore (Google Maps can geocode without it)
+	// But we still need at least city or street
+	if v.Address.City == "" && v.Address.Street == "" {
+		return errors.New("address (city or street) is required")
 	}
 	if v.Coordinates.Lat == 0 || v.Coordinates.Lng == 0 {
 		return errors.New("coordinates are required")

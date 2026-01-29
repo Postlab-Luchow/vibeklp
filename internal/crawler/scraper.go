@@ -37,6 +37,11 @@ func NewCrawler(logger *log.Logger) *Crawler {
 	}
 }
 
+// SetGoogleMapsGeocoder switches to Google Maps Geocoding API
+func (c *Crawler) SetGoogleMapsGeocoder(apiKey string) {
+	c.geocoder = NewGoogleMapsGeocoder(apiKey)
+}
+
 // Fetch fetches a URL and returns a goquery document
 func (c *Crawler) Fetch(url string) (*goquery.Document, error) {
 	// Wait for rate limiter
@@ -429,8 +434,15 @@ func (c *Crawler) GeocodeVenues(venues []storage.Venue) error {
 	c.logger.Println("[INFO] Starting geocoding...")
 
 	for i := range venues {
-		if venues[i].Address.PostalCode == "" {
-			c.logger.Printf("[WARN] Skipping geocoding for %s (no address)", venues[i].Name)
+		// For Google Maps, we can attempt geocoding even without postal code
+		// For Nominatim, postal code is required
+		if venues[i].Address.PostalCode == "" && c.geocoder.provider == "nominatim" {
+			c.logger.Printf("[WARN] Skipping geocoding for %s (no postal code, Nominatim requires it)", venues[i].Name)
+			continue
+		}
+
+		if venues[i].Address.City == "" && venues[i].Address.Street == "" {
+			c.logger.Printf("[WARN] Skipping geocoding for %s (insufficient address data)", venues[i].Name)
 			continue
 		}
 

@@ -54,7 +54,7 @@ func TestVenue_Validate(t *testing.T) {
 			errMsg:  "venue name is required",
 		},
 		{
-			name: "missing postal code",
+			name: "missing address",
 			venue: Venue{
 				Name:    "Test Venue",
 				Address: Address{},
@@ -64,14 +64,14 @@ func TestVenue_Validate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "postal code is required",
+			errMsg:  "address (city or street) is required",
 		},
 		{
 			name: "missing coordinates",
 			venue: Venue{
 				Name: "Test Venue",
 				Address: Address{
-					PostalCode: "29439",
+					City: "Lüchow",
 				},
 				Coordinates: Coordinates{},
 			},
@@ -83,7 +83,7 @@ func TestVenue_Validate(t *testing.T) {
 			venue: Venue{
 				Name: "Test Venue",
 				Address: Address{
-					PostalCode: "29439",
+					City: "Lüchow",
 				},
 				Coordinates: Coordinates{
 					Lat: 50.0,
@@ -98,7 +98,7 @@ func TestVenue_Validate(t *testing.T) {
 			venue: Venue{
 				Name: "Test Venue",
 				Address: Address{
-					PostalCode: "29439",
+					City: "Lüchow",
 				},
 				Coordinates: Coordinates{
 					Lat: 53.0,

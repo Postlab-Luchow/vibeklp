@@ -14,6 +14,7 @@ func main() {
 	outputDir := flag.String("output", "./data", "Output directory for JSON files")
 	verbose := flag.Bool("verbose", false, "Verbose logging")
 	skipGeo := flag.Bool("skip-geocoding", false, "Skip geocoding step")
+	googleAPIKey := flag.String("google-api-key", "", "Google Maps Geocoding API key (optional)")
 	flag.Parse()
 
 	// Setup logger
@@ -33,6 +34,10 @@ func main() {
 
 	// Create crawler
 	c := crawler.NewCrawler(logger)
+	if *googleAPIKey != "" {
+		c.SetGoogleMapsGeocoder(*googleAPIKey)
+		logger.Println("Using Google Maps Geocoding API")
+	}
 	defer c.Close()
 
 	// Crawl all data
