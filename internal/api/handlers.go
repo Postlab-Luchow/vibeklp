@@ -48,8 +48,8 @@ func (h *Handler) GetVenues(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply filters
-	search := r.URL.Query().Get("search")
-	amenity := r.URL.Query().Get("amenity")
+	search := GetQueryParam(r, "search")
+	amenity := GetQueryParam(r, "amenity")
 
 	var filtered []storage.Venue
 	for _, v := range venues {
@@ -107,13 +107,35 @@ func (h *Handler) GetEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enrich events with venue names
+	venues, _ := h.storage.LoadVenues()
+	venueMap := make(map[string]string)
+	for _, v := range venues {
+		venueMap[v.ID] = v.Name
+	}
+	for i := range events {
+		if venueName, ok := venueMap[events[i].VenueID]; ok {
+			events[i].VenueName = venueName
+		}
+	}
+
 	// Apply filters
-	date := r.URL.Query().Get("date")
-	dateFrom := r.URL.Query().Get("dateFrom")
-	dateTo := r.URL.Query().Get("dateTo")
-	category := r.URL.Query().Get("category")
-	venueID := r.URL.Query().Get("venueId")
-	search := r.URL.Query().Get("search")
+	date := GetQueryParamRaw(r, "date")
+	dateFrom := GetQueryParamRaw(r, "dateFrom")
+	dateTo := GetQueryParamRaw(r, "dateTo")
+	category := GetQueryParam(r, "category")
+	venueID := GetQueryParamRaw(r, "venueId")
+	search := GetQueryParam(r, "search")
+
+	// Validate date formats
+	if !ValidateDate(date) || !ValidateDate(dateFrom) || !ValidateDate(dateTo) {
+		h.respondError(w, http.StatusBadRequest, "Invalid date format (expected YYYY-MM-DD)")
+		return
+	}
+	if venueID != "" && !ValidateID(venueID) {
+		h.respondError(w, http.StatusBadRequest, "Invalid venue ID")
+		return
+	}
 
 	var filtered []storage.Event
 	for _, e := range events {
@@ -171,12 +193,16 @@ func (h *Handler) GetEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Get venue details
 	venue, _ := h.storage.GetVenueByID(event.VenueID)
+	if venue != nil {
+		event.VenueName = venue.Name
+	}
 
 	response := map[string]interface{}{
 		"id":          event.ID,
 		"title":       event.Title,
 		"description": event.Description,
 		"venueId":     event.VenueID,
+		"venueName":   event.VenueName,
 		"date":        event.Date,
 		"startTime":   event.StartTime,
 		"endTime":     event.EndTime,
@@ -205,10 +231,28 @@ func (h *Handler) GetExhibitions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enrich exhibitions with venue names
+	venues, _ := h.storage.LoadVenues()
+	venueMap := make(map[string]string)
+	for _, v := range venues {
+		venueMap[v.ID] = v.Name
+	}
+	for i := range exhibitions {
+		if venueName, ok := venueMap[exhibitions[i].VenueID]; ok {
+			exhibitions[i].VenueName = venueName
+		}
+	}
+
 	// Apply filters
-	category := r.URL.Query().Get("category")
-	venueID := r.URL.Query().Get("venueId")
-	search := r.URL.Query().Get("search")
+	category := GetQueryParam(r, "category")
+	venueID := GetQueryParamRaw(r, "venueId")
+	search := GetQueryParam(r, "search")
+
+	// Validate venue ID
+	if venueID != "" && !ValidateID(venueID) {
+		h.respondError(w, http.StatusBadRequest, "Invalid venue ID")
+		return
+	}
 
 	var filtered []storage.Exhibition
 	for _, ex := range exhibitions {
@@ -254,12 +298,16 @@ func (h *Handler) GetExhibition(w http.ResponseWriter, r *http.Request) {
 
 	// Get venue details
 	venue, _ := h.storage.GetVenueByID(exhibition.VenueID)
+	if venue != nil {
+		exhibition.VenueName = venue.Name
+	}
 
 	response := map[string]interface{}{
 		"id":          exhibition.ID,
 		"title":       exhibition.Title,
 		"description": exhibition.Description,
 		"venueId":     exhibition.VenueID,
+		"venueName":   exhibition.VenueName,
 		"artist":      exhibition.Artist,
 		"category":    exhibition.Category,
 		"imageUrl":    exhibition.ImageURL,
@@ -279,13 +327,18 @@ func (h *Handler) GetExhibition(w http.ResponseWriter, r *http.Request) {
 
 // Search performs a global search
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
-	if query == "" {
-		h.respondError(w, http.StatusBadRequest, "Query parameter 'q' is required")
+	query := GetQueryParamRaw(r, "q")
+	query, valid := ValidateSearchQuery(query)
+	if !valid {
+		h.respondError(w, http.StatusBadRequest, "Query parameter 'q' is required (min 2 characters)")
 		return
 	}
 
-	searchType := r.URL.Query().Get("type")
+	searchType := GetQueryParamRaw(r, "type")
+	if !ValidateSearchType(searchType) {
+		h.respondError(w, http.StatusBadRequest, "Invalid search type (must be: venues, events, exhibitions)")
+		return
+	}
 	queryLower := strings.ToLower(query)
 
 	results := map[string]interface{}{
@@ -315,15 +368,22 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	// Search events
 	if searchType == "" || searchType == "events" {
 		events, _ := h.storage.LoadEvents()
+		// Enrich with venue names
+		venues, _ := h.storage.LoadVenues()
+		venueMap := make(map[string]string)
+		for _, v := range venues {
+			venueMap[v.ID] = v.Name
+		}
 		var eventResults []storage.SearchResult
 		for _, e := range events {
 			if strings.Contains(strings.ToLower(e.Title), queryLower) ||
 				strings.Contains(strings.ToLower(e.Description), queryLower) {
+				venueName := venueMap[e.VenueID]
 				eventResults = append(eventResults, storage.SearchResult{
 					ID:       e.ID,
 					Type:     "event",
 					Title:    e.Title,
-					Subtitle: e.VenueName,
+					Subtitle: venueName,
 					Date:     e.Date,
 				})
 			}
@@ -334,16 +394,26 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	// Search exhibitions
 	if searchType == "" || searchType == "exhibitions" {
 		exhibitions, _ := h.storage.LoadExhibitions()
+		// Enrich with venue names for subtitle fallback
+		venues, _ := h.storage.LoadVenues()
+		venueMap := make(map[string]string)
+		for _, v := range venues {
+			venueMap[v.ID] = v.Name
+		}
 		var exhibitionResults []storage.SearchResult
 		for _, ex := range exhibitions {
 			if strings.Contains(strings.ToLower(ex.Title), queryLower) ||
 				strings.Contains(strings.ToLower(ex.Description), queryLower) ||
 				strings.Contains(strings.ToLower(ex.Artist), queryLower) {
+				subtitle := ex.Artist
+				if subtitle == "" {
+					subtitle = venueMap[ex.VenueID]
+				}
 				exhibitionResults = append(exhibitionResults, storage.SearchResult{
 					ID:       ex.ID,
 					Type:     "exhibition",
 					Title:    ex.Title,
-					Subtitle: ex.Artist,
+					Subtitle: subtitle,
 				})
 			}
 		}
@@ -367,6 +437,18 @@ func (h *Handler) GetCalendar(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.respondError(w, http.StatusInternalServerError, "Failed to load events")
 		return
+	}
+
+	// Enrich events with venue names
+	venues, _ := h.storage.LoadVenues()
+	venueMap := make(map[string]string)
+	for _, v := range venues {
+		venueMap[v.ID] = v.Name
+	}
+	for i := range events {
+		if venueName, ok := venueMap[events[i].VenueID]; ok {
+			events[i].VenueName = venueName
+		}
 	}
 
 	// Group events by date
