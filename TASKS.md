@@ -365,6 +365,38 @@ All remaining tasks (4, 7-10, 12-17, 19, 21-22, 24, 26-27, 30-35)
 - ✅ Task #35 completed - `go mod tidy` resolved all warnings
 - Consider implementing #23 (pagination/lazy loading) if dataset grows beyond 200+ venues
 
+## Crawler Issues
+
+### 36. Missing Postal Codes Prevent Geocoding
+- **Problem**: Some venues can't be geocoded due to missing postal codes
+  - Example: "NEU TRAMM RAUM2" fails with "postal code is required"
+  - Address parser expects format: "Street, PLZ City" (e.g., "Dorfstr. 12, 29490 Neu Tramm")
+  - Some venue pages may not have postal codes in address field
+  - Without postal code, validation fails and venue coordinates remain 0,0
+- **Current Behavior**:
+  - Address scraped using CSS selectors: `address, .address, .location` (scraper.go:310)
+  - Parsed with regex `^(\d{5})\s+(.+)$` expecting 5-digit postal code (models.go:29)
+  - If postal code missing, geocoding skipped (scraper.go:432-435)
+  - Validation requires non-empty postal code (models.go:55-56)
+- **Options to Fix**:
+  1. **Improve address scraping** - Check if postal codes exist elsewhere on venue pages
+  2. **Fallback geocoding** - Use city name + street for geocoding even without postal code
+  3. **Alternative geocoding API** - Switch to Google Maps Geocoding API (requires API key)
+     - More robust handling of incomplete addresses
+     - Better accuracy for German addresses
+     - May work with just "Venue Name, City, Germany"
+  4. **Manual postal code mapping** - Maintain fallback map of known cities to postal codes
+- **Files**:
+  - `internal/crawler/scraper.go:308-318` - address extraction
+  - `internal/crawler/models.go:13-44` - ParseAddress() function
+  - `internal/crawler/geocoder.go` - Nominatim geocoding
+  - `internal/storage/models.go:55-56` - postal code validation
+- **Priority**: High (blocks venue data and map functionality)
+- **Next Steps**: 
+  1. Inspect actual HTML from failing venues (e.g., neu-tramm-raum2.html)
+  2. Determine if postal codes exist but aren't being captured
+  3. If postal codes truly missing from website, implement option 2, 3, or 4 above
+
 ## Recent Changes (2026-01-29)
 
 **Commit: Add input validation and API response enrichment**
@@ -373,3 +405,9 @@ All remaining tasks (4, 7-10, 12-17, 19, 21-22, 24, 26-27, 30-35)
 - Added validation for dates, IDs, search queries, and search types
 - Fixed go.mod dependency warnings
 - All tests passing (82.8% coverage)
+
+**Commit: Fix #2: Add exhibition details functionality**
+- Implemented `showExhibitionDetails()` function in app.js
+- Exhibition cards in favorites now clickable and open detail modal
+- Modal displays title, artist, description, venue info, category
+- Includes "Show on Map" and favorite toggle buttons
