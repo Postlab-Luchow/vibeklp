@@ -17,17 +17,20 @@ This document tracks tasks and improvements needed for the Kulturelle Landpartie
   - `internal/api/validation.go` - new validation module
 - **Priority**: ~~High~~ DONE
 
-### 2. Missing Exhibition Details Functionality
+### 2. ~~Missing Exhibition Details Functionality~~ ✅ COMPLETED (2026-01-29)
 - **Problem**: Frontend has `showEventDetails()` but exhibitions don't have a detail view
-  - No `/api/exhibitions/:id` endpoint implementation
-  - No JavaScript function to show exhibition details
-  - Exhibition cards in favorites don't have click handlers
+  - ~~No `/api/exhibitions/:id` endpoint implementation~~ - Already existed
+  - ~~No JavaScript function to show exhibition details~~ ✅ Fixed
+  - ~~Exhibition cards in favorites don't have click handlers~~ ✅ Fixed
+- **Solution**: Implemented complete exhibition details functionality
+  - Added `showExhibitionDetails()` function in app.js
+  - Exhibition cards in favorites now clickable
+  - Modal displays title, artist, description, venue info, category
+  - Includes "Show on Map" and favorite toggle buttons
 - **Files**: 
-  - `internal/api/routes.go` - add exhibition detail route
-  - `internal/api/handlers.go` - already has GetExhibition() at line 245
-  - `web/static/js/app.js` - needs showExhibitionDetails() function
-  - `web/static/js/favorites.js:228` - exhibition card missing click handler
-- **Priority**: Medium
+  - `web/static/js/app.js` - added showExhibitionDetails() function
+  - `web/static/js/favorites.js` - added click handler to exhibition cards
+- **Priority**: ~~Medium~~ DONE
 
 ### 3. Error Handling in Frontend
 - **Problem**: Very basic error handling using `alert()`
@@ -331,6 +334,7 @@ This document tracks tasks and improvements needed for the Kulturelle Landpartie
 
 ### ✅ Completed (2026-01-29)
 1. ~~Missing API Response Fields (#1)~~ - venueName now populated in all endpoints
+2. ~~Missing Exhibition Details (#2)~~ - Exhibition details modal implemented
 6. ~~Search Results Missing venueName (#6)~~ - Search now includes venue names
 18. ~~No Input Validation (#18)~~ - Comprehensive validation added
 35. ~~Go Module Warnings (#35)~~ - Dependencies cleaned up
@@ -339,7 +343,6 @@ This document tracks tasks and improvements needed for the Kulturelle Landpartie
 _None remaining - all high-priority tasks completed!_
 
 ### Medium Priority (Do Next)
-2. Missing Exhibition Details (#2)
 3. Error Handling (#3)
 5. Missing Venue Details Enrichment (#5)
 11. Route Planning Integration (#11)
