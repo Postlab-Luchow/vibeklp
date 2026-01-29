@@ -370,6 +370,49 @@ async function showEventDetails(eventId) {
     }
 }
 
+// Show Exhibition Details
+async function showExhibitionDetails(exhibitionId) {
+    showLoading();
+    
+    try {
+        const response = await fetch(`${API_BASE}/exhibitions/${exhibitionId}`);
+        const exhibition = await response.json();
+        
+        const modal = document.getElementById('detail-modal');
+        const content = document.getElementById('detail-content');
+        
+        content.innerHTML = `
+            <h2>${exhibition.title}</h2>
+            ${exhibition.artist ? `<p style="font-style: italic; color: #666; margin-top: -0.5rem;"><i class="fas fa-palette"></i> ${exhibition.artist}</p>` : ''}
+            ${exhibition.description ? `<p>${exhibition.description}</p>` : ''}
+            
+            ${exhibition.venue ? `
+                <h3><i class="fas fa-map-marker-alt"></i> Wo</h3>
+                <p>${exhibition.venue.name}<br>${exhibition.venue.address.street}<br>${exhibition.venue.address.postalCode} ${exhibition.venue.address.city}</p>
+            ` : ''}
+            
+            ${exhibition.category ? `<p><i class="fas fa-tag"></i> Kategorie: ${exhibition.category}</p>` : ''}
+            
+            <div class="popup-actions">
+                ${exhibition.venue ? `
+                    <button class="btn-primary" onclick="centerMapOnVenue('${exhibition.venueId}')">
+                        <i class="fas fa-map"></i> Auf Karte zeigen
+                    </button>
+                ` : ''}
+                <button class="btn-icon ${isFavorite(exhibitionId) ? 'active' : ''}" onclick="toggleFavorite('${exhibitionId}', 'exhibition')">
+                    <i class="fas fa-heart"></i>
+                </button>
+            </div>
+        `;
+        
+        modal.classList.add('active');
+        hideLoading();
+    } catch (error) {
+        console.error('Error loading exhibition details:', error);
+        hideLoading();
+    }
+}
+
 // Close Modal
 document.querySelector('.modal-close')?.addEventListener('click', () => {
     document.getElementById('detail-modal').classList.remove('active');
@@ -406,3 +449,4 @@ function showError(message) {
 window.App = App;
 window.showVenueDetails = showVenueDetails;
 window.showEventDetails = showEventDetails;
+window.showExhibitionDetails = showExhibitionDetails;

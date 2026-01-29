@@ -227,6 +227,10 @@ function createFavoriteExhibitionCard(exhibition) {
         </div>
     `;
     
+    div.addEventListener('click', () => {
+        showExhibitionDetails(exhibition.id);
+    });
+    
     return div;
 }
 
