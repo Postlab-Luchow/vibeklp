@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kulturelle Landpartie 2026</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">
+                <i class="fas fa-palette"></i>
+                Kulturelle Landpartie 2026
+            </h1>
+            <nav class="nav">
+                <button class="nav-btn active" data-view="map">
+                    <i class="fas fa-map"></i> Karte
+                </button>
+                <button class="nav-btn" data-view="calendar">
+                    <i class="fas fa-calendar"></i> Kalender
+                </button>
+                <button class="nav-btn" data-view="favorites">
+                    <i class="fas fa-heart"></i> Favoriten
+                    <span class="badge" id="favorites-count">0</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <!-- Search -->
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Suche nach Orten, Events..." />
+                <button id="search-btn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters">
+                <h3>Filter</h3>
+                
+                <!-- Date Filter -->
+                <div class="filter-group">
+                    <label>Datum</label>
+                    <select id="date-filter">
+                        <option value="">Alle Tage</option>
+                    </select>
+                </div>
+
+                <!-- Category Filter -->
+                <div class="filter-group">
+                    <label>Kategorie</label>
+                    <select id="category-filter">
+                        <option value="">Alle Kategorien</option>
+                    </select>
+                </div>
+
+                <!-- Amenities Filter -->
+                <div class="filter-group">
+                    <label>
+                        <input type="checkbox" id="bike-route-filter" />
+                        Nur mit Fahrradroute
+                    </label>
+                </div>
+
+                <button id="reset-filters" class="btn-secondary">
+                    <i class="fas fa-redo"></i> Filter zurücksetzen
+                </button>
+            </div>
+
+            <!-- Results List -->
+            <div class="results">
+                <h3>Ergebnisse <span id="results-count">0</span></h3>
+                <div id="results-list" class="results-list"></div>
+            </div>
+        </aside>
+
+        <!-- Content Area -->
+        <div class="content">
+            <!-- Map View -->
+            <div id="map-view" class="view active">
+                <div id="map"></div>
+                
+                <!-- Map Controls -->
+                <div class="map-controls">
+                    <button id="locate-btn" class="map-control-btn" title="Meine Position">
+                        <i class="fas fa-location-crosshairs"></i>
+                    </button>
+                    <button id="route-btn" class="map-control-btn" title="Routenplanung">
+                        <i class="fas fa-route"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Calendar View -->
+            <div id="calendar-view" class="view">
+                <div id="calendar"></div>
+            </div>
+
+            <!-- Favorites View -->
+            <div id="favorites-view" class="view">
+                <div id="favorites-list"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <div id="detail-content"></div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Lade Daten...</p>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+    <!-- Custom JS -->
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/map.js"></script>
+    <script src="/static/js/calendar.js"></script>
+    <script src="/static/js/filters.js"></script>
+    <script src="/static/js/favorites.js"></script>
+    <script src="/static/js/routing.js"></script>
+</body>
+</html>
