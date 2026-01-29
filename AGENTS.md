@@ -1,3 +1,118 @@
+# Agent Development Guide - Kulturelle Landpartie (KLP)
+
+This document provides comprehensive guidance for AI agents working on the Kulturelle Landpartie web application.
+
+## Project Overview
+
+**Kulturelle Landpartie** is a web application for a German cultural festival featuring:
+- Interactive map with ~87 venue locations
+- Calendar view for events and exhibitions
+- Search and filtering capabilities
+- Favorites management with local storage
+- Route planning between venues
+
+**Tech Stack:**
+- **Backend:** Go 1.25.5
+- **Frontend:** Vanilla JavaScript with Leaflet.js maps
+- **Data:** JSON files (no database)
+- **Router:** Gorilla Mux
+- **Scraping:** goquery for web crawling
+
+**Module:** `github.com/musche/klp`
+
+## Essential Commands
+
+### Running the Application
+
+```bash
+# 1. Install dependencies
+go mod download
+
+# 2. Crawl data from kulturelle-landpartie.de
+go run cmd/crawler/main.go
+
+# Crawler options:
+go run cmd/crawler/main.go -verbose              # Detailed logging
+go run cmd/crawler/main.go -skip-geocoding       # Skip geocoding (faster, no coordinates)
+go run cmd/crawler/main.go -output ./data        # Custom output directory
+
+# 3. Start web server
+go run cmd/server/main.go
+
+# Server options:
+go run cmd/server/main.go -port 8080             # Custom port (default: 8081)
+go run cmd/server/main.go -data ./data           # Custom data directory
+go run cmd/server/main.go -static ./web/static   # Custom static directory
+```
+
+### Building
+
+```bash
+# Build crawler
+go build -o bin/crawler cmd/crawler/main.go
+
+# Build server
+go build -o bin/server cmd/server/main.go
+
+# Build both
+go build -o bin/ ./cmd/...
+```
+
+### Testing
+
+```bash
+# Run all tests
+./test.sh
+go test ./...
+
+# Verbose mode
+./test.sh -v
+go test ./... -v
+
+# With coverage
+./test.sh -c
+go test ./... -cover -coverprofile=coverage.out
+
+# View HTML coverage report
+go tool cover -html=coverage.out
+
+# Test specific package
+./test.sh -p ./internal/api
+go test ./internal/api/...
+
+# Test specific function
+go test ./internal/storage/... -run TestVenue_Validate
+
+# Race detection
+go test -race ./...
+```
+
+**Current Test Coverage:** 82.8% overall (API: 78.1%, Storage: 87.5%)
+
+### Linting
+
+```bash
+# Run linter (if golangci-lint installed)
+golangci-lint run
+
+# Fix go.mod issues
+go mod tidy
+```
+
+### Data Management
+
+```bash
+# View data files
+ls -lh data/
+cat data/venues.json | jq '.[0]'      # First venue
+cat data/events.json | jq length      # Count events
+
+# Test API endpoints (server must be running)
+curl http://localhost:8081/api/venues | jq
+curl http://localhost:8081/api/events?date=2026-05-29 | jq
+curl http://localhost:8081/api/search?q=kunst | jq
+```
+
 
 ## Task Management Workflow
 
@@ -79,236 +194,620 @@ User: works, do task #6
 AI: [next task workflow...]
 ```
 
-## Testing Infrastructure (Added: 2026-01-29)
 
-### Overview
-
-The project now has comprehensive test coverage for the backend components. Tests are written using Go's standard testing package and cover unit tests, integration tests, and API endpoint tests.
-
-### Test Structure
+## Project Structure
 
 ```
-internal/
-├── api/
-│   └── handlers_test.go      # API endpoint tests (78% coverage)
-└── storage/
-    ├── models_test.go         # Model validation tests
-    └── json_test.go           # Storage I/O tests (87% coverage)
+klp/
+├── cmd/
+│   ├── crawler/main.go          # Crawler entry point
+│   └── server/main.go           # Web server entry point
+├── internal/
+│   ├── api/                     # REST API handlers
+│   │   ├── handlers.go          # API endpoint implementations
+│   │   ├── handlers_test.go     # API tests (78.1% coverage)
+│   │   ├── middleware.go        # Logging & CORS middleware
+│   │   └── routes.go            # Route definitions
+│   ├── crawler/                 # Web scraping logic
+│   │   ├── scraper.go           # Main crawler implementation
+│   │   ├── scraper_test.go      # Crawler tests
+│   │   ├── geocoder.go          # Nominatim geocoding
+│   │   ├── models.go            # Helper functions
+│   │   ├── AGENTS.md            # Crawler-specific notes (KEEP THIS)
+│   │   └── testdata/            # Test fixtures
+│   └── storage/                 # Data models & JSON I/O
+│       ├── models.go            # Venue, Event, Exhibition structs
+│       ├── models_test.go       # Model tests (87.5% coverage)
+│       ├── json.go              # JSON file operations
+│       └── json_test.go         # Storage tests
+├── web/
+│   ├── static/
+│   │   ├── css/styles.css       # Global styles
+│   │   ├── js/
+│   │   │   ├── app.js           # Main application logic
+│   │   │   ├── map.js           # Leaflet map integration
+│   │   │   ├── calendar.js      # Calendar view
+│   │   │   ├── favorites.js     # Favorites management
+│   │   │   ├── filters.js       # Search & filter logic
+│   │   │   └── routing.js       # Route planning
+│   │   └── images/              # Static images
+│   └── templates/
+│       └── index.html           # Main HTML template
+├── data/                        # JSON data files (generated by crawler)
+│   ├── venues.json
+│   ├── events.json
+│   └── exhibitions.json
+├── plans/                       # Architecture documentation
+│   ├── kulturelle-landpartie-webapp.md
+│   ├── api-specification.md
+│   └── crawler-strategy.md
+├── go.mod                       # Go module definition
+├── go.sum                       # Dependency checksums
+├── test.sh                      # Test runner script
+├── README.md                    # User documentation
+├── QUICKSTART.md               # Quick start guide
+├── TESTING.md                  # Detailed testing guide
+└── TASKS.md                    # Frontend task tracker
 ```
 
-### Running Tests
+## Code Organization & Patterns
 
-#### Quick Test (All packages)
+### Package Structure
+
+**`internal/storage`** - Data models and persistence
+- `models.go`: Defines `Venue`, `Event`, `Exhibition`, `Address`, `Coordinates`, `Contact` structs
+- `json.go`: JSON file I/O operations
+- All structs have JSON tags for serialization
+- Validation methods: `Validate()` on models
+
+**`internal/crawler`** - Web scraping
+- `scraper.go`: Main crawler with rate limiting (2s between requests)
+- User-Agent: `"KLP-Crawler/1.0 (kulturelle-landpartie)"`
+- Base URL: `https://www.kulturelle-landpartie.de`
+- Timeout: 30 seconds per request
+- See `internal/crawler/AGENTS.md` for detailed crawler notes
+
+**`internal/api`** - REST API
+- `handlers.go`: HTTP handlers for all endpoints
+- `routes.go`: Route registration with Gorilla Mux
+- `middleware.go`: Logging and CORS middleware
+- All responses use `respondJSON()` helper
+- Error responses use `respondError()` helper
+
+### Naming Conventions
+
+**Files:**
+- Implementation: `foo.go`
+- Tests: `foo_test.go`
+- Same package name in both
+
+**Functions:**
+- Exported: `PascalCase` (e.g., `GetVenues`, `LoadJSON`)
+- Unexported: `camelCase` (e.g., `respondJSON`, `parseEventFromVenue`)
+- Test functions: `TestFunctionName` or `TestType_Method`
+
+**Variables:**
+- Exported: `PascalCase`
+- Unexported: `camelCase`
+- Constants: `PascalCase` or `SCREAMING_SNAKE_CASE`
+
+**Struct Tags:**
+- Always use JSON tags: `json:"fieldName,omitempty"`
+- Omit empty fields with `omitempty` for optional data
+
+### Error Handling
+
+**Standard pattern:**
+```go
+result, err := SomeFunction()
+if err != nil {
+    return fmt.Errorf("descriptive context: %w", err)
+}
+```
+
+**API handlers:**
+```go
+if err != nil {
+    h.respondError(w, http.StatusInternalServerError, "User-friendly message")
+    return
+}
+```
+
+**Never ignore errors** - always check and handle them.
+
+### Testing Patterns
+
+**Table-driven tests:**
+```go
+tests := []struct {
+    name    string
+    input   string
+    want    string
+    wantErr bool
+}{
+    {"description", "input", "expected", false},
+    // ...
+}
+
+for _, tt := range tests {
+    t.Run(tt.name, func(t *testing.T) {
+        got, err := Function(tt.input)
+        if (err != nil) != tt.wantErr {
+            t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
+        }
+        if got != tt.want {
+            t.Errorf("got %v, want %v", got, tt.want)
+        }
+    })
+}
+```
+
+**HTTP testing:**
+```go
+req := httptest.NewRequest("GET", "/api/venues", nil)
+w := httptest.NewRecorder()
+handler.GetVenues(w, req)
+
+if w.Code != http.StatusOK {
+    t.Errorf("Status = %d, want 200", w.Code)
+}
+
+var response map[string]interface{}
+json.NewDecoder(w.Body).Decode(&response)
+```
+
+**Cleanup:**
+```go
+tempDir, _ := os.MkdirTemp("", "test-*")
+defer os.RemoveAll(tempDir)
+```
+
+## API Endpoints
+
+All endpoints are prefixed with `/api`:
+
+### Venues
+- `GET /api/venues` - List all venues
+  - Query params: `search`, `amenity`
+  - Returns: `{"venues": [...], "total": N}`
+- `GET /api/venues/:id` - Get single venue with related events/exhibitions
+
+### Events
+- `GET /api/events` - List all events
+  - Query params: `date`, `dateFrom`, `dateTo`, `category`, `venueId`
+  - Returns: `{"events": [...], "total": N}`
+- `GET /api/events/:id` - Get single event with venue details
+
+### Exhibitions
+- `GET /api/exhibitions` - List all exhibitions
+  - Returns: `{"exhibitions": [...], "total": N}`
+- `GET /api/exhibitions/:id` - Get single exhibition
+
+### Other
+- `GET /api/search?q=query` - Global search across all types
+  - Query params: `q` (required), `type` (optional: "venue", "event", "exhibition")
+  - Returns: `{"results": [...], "total": N}`
+- `GET /api/calendar` - Get events grouped by date with German weekday names
+- `GET /api/categories` - Get all event categories with counts and colors
+- `GET /api/stats` - Get statistics (venue count, event count, categories, bike routes)
+
+See `plans/api-specification.md` for full API documentation.
+
+## Data Models
+
+### Venue
+```go
+type Venue struct {
+    ID              string      `json:"id"`
+    Name            string      `json:"name"`
+    Description     string      `json:"description,omitempty"`
+    Address         Address     `json:"address"`
+    Coordinates     Coordinates `json:"coordinates"`
+    Contact         Contact     `json:"contact"`
+    Amenities       []string    `json:"amenities,omitempty"`
+    BikeRoute       string      `json:"bikeRoute,omitempty"`
+    EventIDs        []string    `json:"eventIds,omitempty"`
+    ExhibitionIDs   []string    `json:"exhibitionIds,omitempty"`
+    EventCount      int         `json:"eventCount"`
+    ExhibitionCount int         `json:"exhibitionCount"`
+}
+```
+
+**Validation rules:**
+- Name is required
+- Postal code is required
+- Coordinates required (lat/lng != 0)
+- Lat must be in range 52.5-53.5 (Wendland region)
+- Lng must be in range 10.5-12.0
+
+### Event
+```go
+type Event struct {
+    ID          string `json:"id"`
+    Title       string `json:"title"`
+    Description string `json:"description,omitempty"`
+    VenueID     string `json:"venueId"`
+    VenueName   string `json:"venueName,omitempty"`
+    Date        string `json:"date"` // ISO 8601: YYYY-MM-DD
+    StartTime   string `json:"startTime,omitempty"`
+    EndTime     string `json:"endTime,omitempty"`
+    Category    string `json:"category,omitempty"`
+    Admission   string `json:"admission,omitempty"`
+    ImageURL    string `json:"imageUrl,omitempty"`
+}
+```
+
+**Validation rules:**
+- Title is required
+- VenueID is required
+- Date is required and must be in format `YYYY-MM-DD`
+
+### Exhibition
+```go
+type Exhibition struct {
+    ID          string `json:"id"`
+    Title       string `json:"title"`
+    Description string `json:"description,omitempty"`
+    Artist      string `json:"artist,omitempty"`
+    VenueID     string `json:"venueId"`
+    VenueName   string `json:"venueName,omitempty"`
+    ImageURL    string `json:"imageUrl,omitempty"`
+}
+```
+
+**Validation rules:**
+- Title is required
+- VenueID is required
+
+## Frontend Architecture
+
+### JavaScript Modules
+
+**`app.js`** - Main application controller
+- Initializes map, loads data, manages views
+- Global functions: `switchView()`, `showVenueDetails()`, `showEventDetails()`
+- Filter application and result rendering
+
+**`map.js`** - Leaflet map integration
+- Map initialization with OpenStreetMap tiles
+- Marker clustering (MarkerClusterGroup)
+- Popup rendering for venues
+- Exports: `initMap()`, `clearMap()`, `locateUser()`
+
+**`calendar.js`** - Calendar view
+- Fetches `/api/calendar` and renders event list grouped by date
+- German weekday formatting
+- Exports: `loadCalendar()`
+
+**`favorites.js`** - Favorites management
+- LocalStorage persistence
+- Add/remove/toggle favorites for venues and events
+- Badge counter updates
+- Exports: `addFavorite()`, `removeFavorite()`, `isFavorite()`, `loadFavorites()`, `toggleFavorite()`, `updateFavoritesBadge()`
+
+**`filters.js`** - Search and filtering
+- Search input handling with debounce
+- Date and category filters
+- Bike route filter
+- Applies filters and triggers re-render
+
+**`routing.js`** - Route planning
+- OSRM routing API integration
+- Bike route profile (hardcoded)
+- Waypoint management
+- Route visualization on map
+
+### CSS Organization
+
+Single file: `web/static/css/styles.css`
+
+**CSS Variables:**
+```css
+--primary-color: #2C5F2D
+--accent-color: #FFA07A
+--text-color: #333
+--bg-color: #F5F5F5
+```
+
+**Key classes:**
+- `.sidebar` - Left panel for filters/results
+- `.content` - Main map container
+- `.modal` - Event/venue detail modal
+- `.btn-*` - Button styles
+- `.card` - Result card component
+
+**Responsive breakpoints:**
+- `max-width: 768px` - Mobile layout (stacked views)
+
+## Important Gotchas & Non-Obvious Patterns
+
+### 1. Crawler Rate Limiting
+The crawler uses a `time.Ticker` with 2-second intervals. **Never remove this** - it prevents being blocked by the website.
+
+```go
+c.rateLimiter = time.NewTicker(2 * time.Second)
+// In Fetch():
+<-c.rateLimiter.C
+```
+
+### 2. Geocoding Rate Limits
+Nominatim API has strict rate limits (1 request/second). The geocoder already implements this. Use `-skip-geocoding` flag for testing.
+
+### 3. Date Format Hardcoding
+The crawler hardcodes the year 2026 when parsing dates from the website (which only shows `DD.MM.` format). Update this for future years.
+
+```go
+// In parseEventFromVenue():
+year := 2026  // TODO: Make this configurable
+```
+
+### 4. Server Port Default
+The server defaults to port **8081** (not 8080). This is intentional to avoid conflicts.
+
+### 5. German Weekday Names
+Calendar API returns German weekday names. Frontend expects this format:
+
+```go
+weekday := []string{"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"}[t.Weekday()]
+```
+
+### 6. File Paths in Tests
+Always use `os.MkdirTemp()` for test data directories. Never hardcode paths.
+
+```go
+tempDir, err := os.MkdirTemp("", "klp-test-*")
+defer os.RemoveAll(tempDir)
+```
+
+### 7. CORS Middleware Order
+CORS middleware must be applied to the router in `cmd/server/main.go`. It's already configured - don't modify unless necessary.
+
+### 8. JSON File Overwrites
+`storage.SaveVenues()`, `SaveEvents()`, etc. **overwrite** existing files. There's no append mode.
+
+### 9. Venue ID Generation
+Venue IDs are slugified from the venue name. Ensure uniqueness when adding new venues.
+
+```go
+// Example: "Bankewitz" -> "bankewitz"
+id := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
+```
+
+### 10. Frontend Global Functions
+Several JS functions are exported to `window` for cross-module access:
+- `map.js`: `initMap`, `clearMap`, `locateUser`
+- `calendar.js`: `loadCalendar`
+- `favorites.js`: `addFavorite`, `removeFavorite`, `isFavorite`, etc.
+
+Don't change these to ES6 modules without refactoring all imports.
+
+### 11. Static Asset Paths
+In HTML/CSS, static assets use `/static/` prefix. The server strips this when serving:
+
+```html
+<link rel="stylesheet" href="/static/css/styles.css">
+<!-- Served from: ./web/static/css/styles.css -->
+```
+
+### 12. API Response Wrapper
+API responses are wrapped in objects:
+
+```json
+{
+  "venues": [...],
+  "total": 42
+}
+```
+
+**Not:**
+```json
+[...]  // ❌ Never return bare arrays
+```
+
+### 13. Coordinates Validation
+Venue coordinates are validated to be within the Wendland region:
+- Latitude: 52.5 - 53.5
+- Longitude: 10.5 - 12.0
+
+If geocoding returns coordinates outside this range, validation fails.
+
+### 14. Error vs Warning in Crawler
+The crawler logs warnings for individual venue failures but continues processing. It only returns errors for catastrophic failures (can't fetch main page).
+
+### 15. go.mod Warnings
+You may see warnings about unused dependencies (`github.com/rs/cors`) or indirect dependencies that should be direct. Run `go mod tidy` to fix.
+
+## Development Workflow
+
+### Adding a New API Endpoint
+
+1. Define handler in `internal/api/handlers.go`:
+```go
+func (h *Handler) GetMyEndpoint(w http.ResponseWriter, r *http.Request) {
+    // Implementation
+    h.respondJSON(w, http.StatusOK, data)
+}
+```
+
+2. Register route in `internal/api/routes.go`:
+```go
+api.HandleFunc("/myendpoint", handler.GetMyEndpoint).Methods("GET")
+```
+
+3. Add tests in `internal/api/handlers_test.go`:
+```go
+func TestGetMyEndpoint(t *testing.T) {
+    // Test implementation
+}
+```
+
+4. Update `plans/api-specification.md` with documentation
+
+### Adding a New Data Field
+
+1. Update struct in `internal/storage/models.go`:
+```go
+type Venue struct {
+    // ...
+    NewField string `json:"newField,omitempty"`
+}
+```
+
+2. Update validation if needed:
+```go
+func (v *Venue) Validate() error {
+    // Add validation rules
+}
+```
+
+3. Update crawler parsing in `internal/crawler/scraper.go`
+
+4. Add tests in `internal/storage/models_test.go`
+
+5. Run tests: `./test.sh`
+
+### Fixing Crawler Issues
+
+1. Always check `internal/crawler/AGENTS.md` first for known issues
+
+2. Fetch sample HTML to verify structure:
 ```bash
-./test.sh
+curl -s "https://www.kulturelle-landpartie.de/orte/bankewitz.html" > test.html
 ```
 
-#### Verbose Output
+3. Test selectors with a quick Go script or inspect HTML manually
+
+4. Update selectors in `scraper.go` and parsing functions
+
+5. Run crawler in verbose mode:
 ```bash
-./test.sh -v
-# or
-go test ./... -v
+go run cmd/crawler/main.go -verbose -skip-geocoding
 ```
 
-#### With Coverage Report
+6. Verify output:
 ```bash
-./test.sh -c
-# Then view detailed HTML report:
-go tool cover -html=coverage.out
+cat data/events.json | jq length
+cat data/events.json | jq '.[0]'
 ```
 
-#### Test Specific Package
+## Common Issues & Solutions
+
+### Crawler Returns Empty Data
+
+**Symptoms:** `events.json` and `exhibitions.json` contain `null` or empty arrays.
+
+**Diagnosis:**
+1. Run with `-verbose` flag to see what's being fetched
+2. Fetch a sample page and inspect HTML structure
+3. Check if selectors in `scraper.go` match actual HTML
+
+**Solution:** Update CSS selectors in `parseEventFromVenue()` and `parseExhibitionFromVenue()`. See `internal/crawler/AGENTS.md` for examples of past fixes.
+
+### Test Failures on Fresh Clone
+
+**Symptoms:** Tests fail with "file not found" or "no such directory".
+
+**Solution:** 
+1. Run `go mod download` first
+2. Ensure test data directory is created with `os.MkdirTemp()`
+3. Check that tests aren't looking for hardcoded paths
+
+### Server Won't Start - Port Already in Use
+
+**Symptoms:** `listen tcp :8081: bind: address already in use`
+
+**Solution:**
 ```bash
-./test.sh -p ./internal/api
-# or
-go test ./internal/api/... -v
+# Find process using port
+lsof -i :8081
+# Kill it or use different port
+go run cmd/server/main.go -port 8082
 ```
 
-#### Test Individual Function
-```bash
-go test ./internal/storage/... -run TestVenue_Validate -v
-```
+### Frontend Shows No Data
 
-### Test Coverage Summary
+**Symptoms:** Map loads but no markers appear.
 
-As of 2026-01-29:
-- **API package**: 78.1% coverage
-- **Storage package**: 87.5% coverage
-- **Overall backend**: 82.8% average coverage
+**Diagnosis:**
+1. Open browser console (F12) - check for API errors
+2. Verify server is running: `curl http://localhost:8081/api/venues`
+3. Check that data files exist: `ls -lh data/`
 
-### What's Tested
+**Solution:**
+1. Run crawler first: `go run cmd/crawler/main.go`
+2. Restart server
+3. Check frontend console for JavaScript errors
 
-#### Storage Package Tests
-- ✅ Model validation (Venue, Event, Exhibition)
-- ✅ Address formatting
-- ✅ JSON save/load operations
-- ✅ GetByID functions (venue, event, exhibition)
-- ✅ GetVenueWithDetails (with related entities)
-- ✅ Error handling (missing files, invalid data)
-- ✅ Directory creation
+### Geocoding Fails
 
-#### API Package Tests
-- ✅ All GET endpoints (venues, events, exhibitions)
-- ✅ Individual item retrieval by ID
-- ✅ Query parameter filtering (date, category, venue, search)
-- ✅ Search functionality (all types, specific types)
-- ✅ Calendar endpoint (event grouping by date)
-- ✅ Categories endpoint
-- ✅ Statistics endpoint
-- ✅ Route registration verification
-- ✅ Error responses (404, 400)
+**Symptoms:** Venues have no coordinates or geocoding warnings.
 
-### Writing New Tests
+**Causes:**
+- Nominatim rate limits (too fast)
+- Invalid addresses
+- Network issues
 
-When adding new features or modifying existing code:
+**Solutions:**
+1. Use `-skip-geocoding` for testing
+2. Check address format in crawler output
+3. Manually verify a few addresses on maps.google.com
+4. The geocoder already delays 1 second between requests - don't reduce this
 
-1. **Create test file** alongside the implementation:
-   ```
-   myfile.go       → myfile_test.go
-   ```
+### Tests Pass Locally But Fail in CI
 
-2. **Use table-driven tests** for multiple scenarios:
-   ```go
-   func TestMyFunction(t *testing.T) {
-       tests := []struct {
-           name    string
-           input   string
-           want    string
-           wantErr bool
-       }{
-           {"valid input", "test", "TEST", false},
-           {"empty input", "", "", true},
-       }
-       
-       for _, tt := range tests {
-           t.Run(tt.name, func(t *testing.T) {
-               got, err := MyFunction(tt.input)
-               if (err != nil) != tt.wantErr {
-                   t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
-               }
-               if got != tt.want {
-                   t.Errorf("got %v, want %v", got, tt.want)
-               }
-           })
-       }
-   }
-   ```
+**Common causes:**
+- Timezone differences (use UTC in tests)
+- Path separators (use `filepath.Join()`)
+- Missing environment variables
+- Different Go version
 
-3. **Use subtests** for organization:
-   ```go
-   t.Run("success case", func(t *testing.T) { ... })
-   t.Run("error case", func(t *testing.T) { ... })
-   ```
+**Best practices:**
+- Use `filepath.Join()` for all paths
+- Use `os.MkdirTemp()` for temp files
+- Don't depend on specific locale/timezone
+- Test on Docker to match CI environment
 
-4. **Clean up resources** with defer:
-   ```go
-   tempDir, _ := os.MkdirTemp("", "test-*")
-   defer os.RemoveAll(tempDir)
-   ```
+## Known Issues & TODOs
 
-5. **Run tests before commits**:
-   ```bash
-   ./test.sh
-   ```
+See `TASKS.md` for a comprehensive list of known issues and planned improvements. High-priority items:
 
-### Testing Checklist
+1. **Missing API Response Fields** (`TASKS.md` #1)
+   - Events/exhibitions need `venueName` field populated
+   - Venues need `eventCount` and `exhibitionCount` computed
 
-Before committing changes:
+2. **Search Results Missing Venue Names** (`TASKS.md` #6)
+   - Search endpoint doesn't populate venue names for events/exhibitions
 
-- [ ] All tests pass: `./test.sh`
-- [ ] New code has tests (maintain >75% coverage)
-- [ ] Tests verify both success and error cases
-- [ ] Integration tests pass for API changes
-- [ ] No race conditions: `go test -race ./...`
+3. **No Input Validation** (`TASKS.md` #18)
+   - Frontend doesn't sanitize search inputs
 
-### CI/CD Integration
+4. **go.mod Warnings**
+   - `github.com/rs/cors` is imported but unused
+   - Some dependencies marked as indirect but should be direct
+   - **Fix:** Run `go mod tidy`
 
-Tests can be integrated into CI/CD pipelines:
+## Documentation Files
 
-```yaml
-# Example GitHub Actions
-- name: Run tests
-  run: go test ./... -v -race -coverprofile=coverage.out
+- **README.md** - User-facing documentation, installation, deployment
+- **QUICKSTART.md** - Quick start guide for users
+- **TESTING.md** - Comprehensive testing guide with examples
+- **TASKS.md** - Frontend issues and task tracker
+- **AGENTS.md** (this file) - Developer/agent guide
+- **internal/crawler/AGENTS.md** - Crawler-specific troubleshooting
+- **plans/*.md** - Architecture and API specification docs
 
-- name: Check coverage
-  run: |
-    coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-    if (( $(echo "$coverage < 75" | bc -l) )); then
-      echo "Coverage $coverage% is below 75%"
-      exit 1
-    fi
-```
+## Contact & Support
 
-### Manual Testing Checklist
-
-For frontend and end-to-end testing:
-
-#### Server Startup
-```bash
-# 1. Start server
-go run cmd/server/main.go
-
-# 2. Verify server responds
-curl http://localhost:8081/api/venues
-
-# 3. Check frontend loads
-open http://localhost:8081
-```
-
-#### API Endpoints
-```bash
-# Test each endpoint manually
-curl http://localhost:8081/api/venues | jq
-curl http://localhost:8081/api/events?date=2026-05-29 | jq
-curl http://localhost:8081/api/exhibitions | jq
-curl http://localhost:8081/api/calendar | jq
-curl http://localhost:8081/api/categories | jq
-curl http://localhost:8081/api/stats | jq
-curl "http://localhost:8081/api/search?q=test" | jq
-```
-
-#### Frontend Features
-- [ ] Map loads with venue markers
-- [ ] Clicking marker shows popup
-- [ ] Search filters results
-- [ ] Date filter works
-- [ ] Category filter works
-- [ ] Calendar view displays events
-- [ ] Favorites can be added/removed
-- [ ] Modal opens for venue details
-- [ ] Route planning works
-- [ ] Mobile responsive design
-
-### Troubleshooting Tests
-
-**Tests fail with "no such file":**
-- Tests create temporary directories automatically
-- Check that test data setup is correct
-- Ensure no hardcoded file paths
-
-**Tests pass locally but fail in CI:**
-- Check for OS-specific path issues (use `filepath.Join`)
-- Verify all dependencies are available
-- Check for timezone-related date parsing issues
-
-**Flaky tests:**
-- Avoid time-dependent assertions
-- Use deterministic test data
-- Check for race conditions: `go test -race`
-
-**Coverage drops:**
-- Run `./test.sh -c` to see what's not covered
-- Add tests for new code paths
-- Consider edge cases and error paths
-
-### Best Practices
-
-1. **Fast tests**: Tests should complete in milliseconds
-2. **Isolated tests**: Each test creates its own temp data
-3. **Clear assertions**: Use descriptive error messages
-4. **No test dependencies**: Tests should run in any order
-5. **Use test helpers**: Extract common setup code
+For issues or questions:
+- Check existing documentation first (AGENTS.md, TESTING.md, TASKS.md)
+- Review `internal/crawler/AGENTS.md` for crawler-specific issues
+- Check browser console for frontend errors
+- Review server logs for API errors
+- GitHub issues: https://github.com/musche/klp/issues
 
 ---
 
-*This document should be updated whenever significant crawler changes are made or website structure issues are discovered.*
+**Last Updated:** 2026-01-29  
+**Go Version:** 1.25.5  
+**Test Coverage:** 82.8% (API: 78.1%, Storage: 87.5%)  
+**Total Lines of Code:** ~3,291 (Go only)
