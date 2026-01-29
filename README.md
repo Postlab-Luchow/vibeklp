@@ -122,9 +122,32 @@ go build -o bin/server cmd/server/main.go
 
 ### Tests
 
+Run all tests:
 ```bash
-go test ./...
+./test.sh
 ```
+
+Options:
+```bash
+./test.sh -v               # Verbose output
+./test.sh -c               # With coverage report
+./test.sh -p ./internal/api # Test specific package
+```
+
+Or use Go directly:
+```bash
+go test ./...              # All tests
+go test ./... -v           # Verbose
+go test ./... -cover       # With coverage
+go test -race ./...        # Check for race conditions
+```
+
+**Current Test Coverage:**
+- API package: 78.1%
+- Storage package: 87.5%
+- Overall: 82.8%
+
+See [`AGENTS.md`](AGENTS.md) for detailed testing documentation.
 
 ### Linting
 
