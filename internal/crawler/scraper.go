@@ -314,13 +314,21 @@ func (c *Crawler) CrawlVenueDetails(url string) (*storage.Venue, []storage.Event
 	// Address is typically in format: "Street<br/>PostalCode City"
 	addressText := ""
 	doc.Find("#comblock p").Each(func(i int, s *goquery.Selection) {
+		html, _ := s.Html()
 		text := CleanText(s.Text())
-		// Look for postal code pattern (5 digits)
-		if strings.Contains(text, "29") || strings.Contains(text, "Str") {
-			html, _ := s.Html()
+		
+		// Skip if it's a phone number or email
+		if strings.Contains(text, "Fon") || strings.Contains(text, "@") {
+			return
+		}
+		
+		// Look for 5-digit postal code (German postal codes)
+		if regexp.MustCompile(`\d{5}`).MatchString(text) {
 			// Replace <br/> with comma for parsing
 			html = strings.ReplaceAll(html, "<br/>", ", ")
 			html = strings.ReplaceAll(html, "<br>", ", ")
+			// Clean up prefixes like "Eingang:" or "oder"
+			html = regexp.MustCompile(`(?i)(Eingang:\s*|oder\s+)`).ReplaceAllString(html, "")
 			addressText = CleanText(html)
 			return // Stop after finding first address-like paragraph
 		}
