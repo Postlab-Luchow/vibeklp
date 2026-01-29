@@ -504,4 +504,86 @@ curl "http://localhost:8081/api/search?q=test" | jq
 
 ---
 
+## Task Management Workflow
+
+This project uses `TASKS.md` to track issues and improvements. When working on tasks from that file:
+
+### Task Execution Rules
+
+1. **ONE TASK AT A TIME**: Only work on a single task per session
+   - Complete the task fully before moving to the next
+   - Don't combine multiple tasks unless explicitly requested
+
+2. **Standard Task Workflow**:
+   ```
+   a. Read and understand the task from TASKS.md
+   b. Implement the solution (code changes, new files, etc.)
+   c. Run all relevant tests to verify the fix
+   d. Commit changes with descriptive message
+   e. Prompt user to test the changes
+   ```
+
+3. **Testing Requirements**:
+   - Run unit tests if they exist
+   - Run integration tests for API changes
+   - Manually verify UI changes work correctly
+   - Test edge cases mentioned in the task description
+
+4. **Commit Message Format**:
+   ```
+   Fix #<task-number>: <Brief description>
+   
+   - <Change 1>
+   - <Change 2>
+   - <Change 3>
+   ```
+   Example: `Fix #1: Add missing API response fields`
+
+5. **User Testing Prompt**:
+   After committing, always prompt the user to test:
+   ```
+   Changes committed. Please test:
+   - <Specific thing to test 1>
+   - <Specific thing to test 2>
+   ```
+
+### Task Selection
+
+When user says "do task #X":
+- Find task #X in TASKS.md
+- Read the full description including files affected
+- Check priority and dependencies
+- Execute using the workflow above
+
+### Task Prioritization
+
+Refer to the "Task Prioritization Summary" section in TASKS.md:
+- **High Priority**: Critical bugs, missing core functionality
+- **Medium Priority**: Important features, UX improvements
+- **Low Priority**: Nice-to-have features, code quality improvements
+
+### After Task Completion
+
+- DO NOT automatically start another task
+- DO NOT ask "what's next?" - wait for user input
+- User will either:
+  - Report test results (fix if issues found)
+  - Request the next task explicitly
+
+### Example Session
+
+```
+User: do task #1
+AI: [reads task, implements fix, runs tests, commits]
+    Changes committed. Please test:
+    - Check venue cards show eventCount/exhibitionCount
+    - Verify event cards display venueName
+    - Test exhibitions show venueName in UI
+
+User: works, do task #6
+AI: [next task workflow...]
+```
+
+---
+
 *This document should be updated whenever significant crawler changes are made or website structure issues are discovered.*
