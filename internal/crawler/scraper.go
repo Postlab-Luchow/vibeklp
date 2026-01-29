@@ -310,11 +310,19 @@ func (c *Crawler) CrawlVenueDetails(url string) (*storage.Venue, []storage.Event
 		}
 	})
 
-	// Try to extract address from various possible locations
+	// Try to extract address from #comblock paragraphs
+	// Address is typically in format: "Street<br/>PostalCode City"
 	addressText := ""
-	doc.Find("address, .address, .location").Each(func(i int, s *goquery.Selection) {
-		if addressText == "" {
-			addressText = CleanText(s.Text())
+	doc.Find("#comblock p").Each(func(i int, s *goquery.Selection) {
+		text := CleanText(s.Text())
+		// Look for postal code pattern (5 digits)
+		if strings.Contains(text, "29") || strings.Contains(text, "Str") {
+			html, _ := s.Html()
+			// Replace <br/> with comma for parsing
+			html = strings.ReplaceAll(html, "<br/>", ", ")
+			html = strings.ReplaceAll(html, "<br>", ", ")
+			addressText = CleanText(html)
+			return // Stop after finding first address-like paragraph
 		}
 	})
 
