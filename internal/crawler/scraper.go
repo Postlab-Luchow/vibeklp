@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/musche/klp/internal/crawler/llm"
 	"github.com/musche/klp/internal/storage"
 )
 
@@ -20,6 +21,8 @@ type Crawler struct {
 	baseURL     string
 	geocoder    *Geocoder
 	logger      *log.Logger
+	useLLM      bool
+	llmParser   *LLMParser
 }
 
 // NewCrawler creates a new Crawler instance
@@ -34,7 +37,16 @@ func NewCrawler(logger *log.Logger) *Crawler {
 		baseURL:     "https://www.kulturelle-landpartie.de",
 		geocoder:    NewGeocoder(userAgent),
 		logger:      logger,
+		useLLM:      false,
 	}
+}
+
+// NewCrawlerWithLLM creates a new Crawler instance with LLM support
+func NewCrawlerWithLLM(logger *log.Logger, apiKey, model string, cache *llm.Cache, batchSize int, dryRun bool) *Crawler {
+	c := NewCrawler(logger)
+	c.useLLM = true
+	c.llmParser = NewLLMParser(apiKey, model, cache, batchSize, logger, dryRun)
+	return c
 }
 
 // SetGoogleMapsGeocoder switches to Google Maps Geocoding API
@@ -273,6 +285,83 @@ func (c *Crawler) CrawlVenueDetails(url string) (*storage.Venue, []storage.Event
 		return nil, nil, nil, err
 	}
 
+	// Use LLM if enabled
+	if c.useLLM {
+		return c.crawlWithLLM(doc, url)
+	}
+
+	return c.crawlWithRegex(doc, url)
+}
+
+// crawlWithLLM uses LLM for parsing
+func (c *Crawler) crawlWithLLM(doc *goquery.Document, url string) (*storage.Venue, []storage.Event, []storage.Exhibition, error) {
+	// Extract venue HTML block
+	venueHTML, err := doc.Find("#comblock").Html()
+	if err != nil {
+		c.logger.Printf("[LLM WARN] Failed to extract venue HTML, falling back to regex: %v", err)
+		return c.crawlWithRegex(doc, url)
+	}
+
+	// Parse venue with LLM
+	venue, err := c.llmParser.ParseVenue(venueHTML)
+	if err != nil {
+		c.logger.Printf("[LLM WARN] Venue parsing failed, falling back to regex: %v", err)
+		return c.crawlWithRegex(doc, url)
+	}
+
+	// Extract events HTML blocks
+	var eventHTMLs []string
+	doc.Find(".slider.ver .item").Each(func(i int, s *goquery.Selection) {
+		html, _ := s.Html()
+		eventHTMLs = append(eventHTMLs, html)
+	})
+
+	// Parse events with LLM
+	events, err := c.llmParser.ParseEvents(eventHTMLs, venue.ID, venue.Name)
+	if err != nil {
+		c.logger.Printf("[LLM WARN] Event parsing failed, falling back to regex: %v", err)
+		// Fall back to regex for events
+		var fallbackEvents []storage.Event
+		doc.Find(".slider.ver .item").Each(func(i int, s *goquery.Selection) {
+			event := c.parseEventFromVenue(s, venue.ID, venue.Name)
+			if event != nil {
+				fallbackEvents = append(fallbackEvents, *event)
+			}
+		})
+		events = fallbackEvents
+	}
+
+	// Extract exhibitions HTML blocks
+	var exhibitionHTMLs []string
+	doc.Find(".slider.aus .item").Each(func(i int, s *goquery.Selection) {
+		html, _ := s.Html()
+		exhibitionHTMLs = append(exhibitionHTMLs, html)
+	})
+
+	// Parse exhibitions with LLM
+	exhibitions, err := c.llmParser.ParseExhibitions(exhibitionHTMLs, venue.ID, venue.Name)
+	if err != nil {
+		c.logger.Printf("[LLM WARN] Exhibition parsing failed, falling back to regex: %v", err)
+		// Fall back to regex for exhibitions
+		var fallbackExhibitions []storage.Exhibition
+		doc.Find(".slider.aus .item").Each(func(i int, s *goquery.Selection) {
+			exhibition := c.parseExhibitionFromVenue(s, venue.ID, venue.Name)
+			if exhibition != nil {
+				fallbackExhibitions = append(fallbackExhibitions, *exhibition)
+			}
+		})
+		exhibitions = fallbackExhibitions
+	}
+
+	venue.EventCount = len(events)
+	venue.ExhibitionCount = len(exhibitions)
+
+	return venue, events, exhibitions, nil
+}
+
+// crawlWithRegex uses regex-based parsing (original implementation)
+func (c *Crawler) crawlWithRegex(doc *goquery.Document, url string) (*storage.Venue, []storage.Event, []storage.Exhibition, error) {
+
 	// Extract venue name from h1
 	venueName := CleanText(doc.Find("h1").First().Text())
 	if venueName == "" {
@@ -316,12 +405,12 @@ func (c *Crawler) CrawlVenueDetails(url string) (*storage.Venue, []storage.Event
 	doc.Find("#comblock p").Each(func(i int, s *goquery.Selection) {
 		html, _ := s.Html()
 		text := CleanText(s.Text())
-		
+
 		// Skip if it's a phone number or email
 		if strings.Contains(text, "Fon") || strings.Contains(text, "@") {
 			return
 		}
-		
+
 		// Look for 5-digit postal code (German postal codes)
 		if regexp.MustCompile(`\d{5}`).MatchString(text) {
 			// Replace <br/> with comma for parsing
@@ -493,4 +582,9 @@ func (c *Crawler) CrawlEvents() ([]storage.Event, error) {
 func (c *Crawler) CrawlExhibitions(venues []storage.Venue) ([]storage.Exhibition, error) {
 	c.logger.Println("[WARN] CrawlExhibitions is deprecated - exhibitions are crawled from venue pages")
 	return []storage.Exhibition{}, nil
+}
+
+// GetLLMParser returns the LLM parser (nil if not using LLM)
+func (c *Crawler) GetLLMParser() *LLMParser {
+	return c.llmParser
 }

@@ -32,6 +32,7 @@ Thumbs.db
 /cmd/crawler/crawler
 /cmd/server/server
 /data/*.json
+/.llm_cache/
 
 # Logs
 *.log
