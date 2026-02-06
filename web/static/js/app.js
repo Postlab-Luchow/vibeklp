@@ -54,46 +54,107 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error('❌ Failed to initialize app:', error);
         hideLoading();
-        showError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.');
+        showError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.', {
+            retry: 'location.reload()'
+        });
     }
 });
 
-// Load Data from API
-async function loadData() {
+// Load Data from API with retry logic
+async function loadData(retryCount = 0) {
     console.log('Loading data from API...');
     
+    const maxRetries = 2;
+    const failedEndpoints = [];
+    
     try {
-        // Load venues
-        const venuesResponse = await fetch(`${API_BASE}/venues`);
-        const venuesData = await venuesResponse.json();
-        App.data.venues = venuesData.venues || [];
-        console.log(`✓ Loaded ${App.data.venues.length} venues`);
+        // Load venues with retry
+        try {
+            const venuesResponse = await fetchWithRetry(`${API_BASE}/venues`);
+            const venuesData = await venuesResponse.json();
+            App.data.venues = venuesData.venues || [];
+            console.log(`✓ Loaded ${App.data.venues.length} venues`);
+        } catch (error) {
+            console.error('Failed to load venues:', error);
+            failedEndpoints.push('Orte');
+        }
         
-        // Load events
-        const eventsResponse = await fetch(`${API_BASE}/events`);
-        const eventsData = await eventsResponse.json();
-        App.data.events = eventsData.events || [];
-        console.log(`✓ Loaded ${App.data.events.length} events`);
+        // Load events with retry
+        try {
+            const eventsResponse = await fetchWithRetry(`${API_BASE}/events`);
+            const eventsData = await eventsResponse.json();
+            App.data.events = eventsData.events || [];
+            console.log(`✓ Loaded ${App.data.events.length} events`);
+        } catch (error) {
+            console.error('Failed to load events:', error);
+            failedEndpoints.push('Events');
+        }
         
-        // Load exhibitions
-        const exhibitionsResponse = await fetch(`${API_BASE}/exhibitions`);
-        const exhibitionsData = await exhibitionsResponse.json();
-        App.data.exhibitions = exhibitionsData.exhibitions || [];
-        console.log(`✓ Loaded ${App.data.exhibitions.length} exhibitions`);
+        // Load exhibitions with retry
+        try {
+            const exhibitionsResponse = await fetchWithRetry(`${API_BASE}/exhibitions`);
+            const exhibitionsData = await exhibitionsResponse.json();
+            App.data.exhibitions = exhibitionsData.exhibitions || [];
+            console.log(`✓ Loaded ${App.data.exhibitions.length} exhibitions`);
+        } catch (error) {
+            console.error('Failed to load exhibitions:', error);
+            failedEndpoints.push('Ausstellungen');
+        }
         
-        // Load categories
-        const categoriesResponse = await fetch(`${API_BASE}/categories`);
-        const categoriesData = await categoriesResponse.json();
-        App.data.categories = categoriesData.categories || [];
-        console.log(`✓ Loaded ${App.data.categories.length} categories`);
+        // Load categories with retry
+        try {
+            const categoriesResponse = await fetchWithRetry(`${API_BASE}/categories`);
+            const categoriesData = await categoriesResponse.json();
+            App.data.categories = categoriesData.categories || [];
+            console.log(`✓ Loaded ${App.data.categories.length} categories`);
+        } catch (error) {
+            console.error('Failed to load categories:', error);
+            failedEndpoints.push('Kategorien');
+        }
+        
+        // Show warning if some endpoints failed but app can still work
+        if (failedEndpoints.length > 0 && failedEndpoints.length < 4) {
+            const message = `Einige Daten konnten nicht geladen werden: ${failedEndpoints.join(', ')}`;
+            showError(message, {
+                retry: retryCount < maxRetries ? 'loadData(' + (retryCount + 1) + ')' : null
+            });
+        }
         
         // Populate filter dropdowns
         populateFilters();
+        
+        // Throw error if all endpoints failed
+        if (failedEndpoints.length === 4) {
+            throw new Error('Alle Datenquellen konnten nicht geladen werden');
+        }
         
     } catch (error) {
         console.error('Error loading data:', error);
         throw error;
     }
+}
+
+// Fetch with retry logic
+async function fetchWithRetry(url, options = {}, maxRetries = 2) {
+    let lastError;
+    
+    for (let i = 0; i <= maxRetries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response;
+        } catch (error) {
+            lastError = error;
+            if (i < maxRetries) {
+                console.warn(`Retry ${i + 1}/${maxRetries} for ${url}...`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+            }
+        }
+    }
+    
+    throw lastError;
 }
 
 // Populate Filter Dropdowns
@@ -441,8 +502,72 @@ function hideLoading() {
     document.getElementById('loading').classList.remove('active');
 }
 
-function showError(message) {
-    alert(message); // Simple error handling - could be improved with a toast notification
+function showError(message, options = {}) {
+    const container = document.getElementById('error-container');
+    if (!container) {
+        console.error('Error container not found:', message);
+        return;
+    }
+    
+    const errorId = 'error-' + Date.now();
+    const errorDiv = document.createElement('div');
+    errorDiv.id = errorId;
+    errorDiv.className = 'error-message';
+    errorDiv.innerHTML = `
+        <i class="fas fa-exclamation-circle"></i>
+        <span>${escapeHtml(message)}</span>
+        ${options.retry ? `<button class="retry-btn" onclick="${options.retry}">Erneut versuchen</button>` : ''}
+        <button class="close-btn" onclick="dismissError('${errorId}')" aria-label="Fehler schließen">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    container.appendChild(errorDiv);
+    
+    // Auto-dismiss after 10 seconds unless it's a retryable error
+    if (!options.retry) {
+        setTimeout(() => dismissError(errorId), 10000);
+    }
+}
+
+function dismissError(errorId) {
+    const errorDiv = document.getElementById(errorId);
+    if (errorDiv) {
+        errorDiv.style.opacity = '0';
+        errorDiv.style.transform = 'translateY(-20px)';
+        setTimeout(() => errorDiv.remove(), 300);
+    }
+}
+
+function showSuccess(message) {
+    const container = document.getElementById('error-container');
+    if (!container) {
+        console.log('Success:', message);
+        return;
+    }
+    
+    const successId = 'success-' + Date.now();
+    const successDiv = document.createElement('div');
+    successDiv.id = successId;
+    successDiv.className = 'success-message';
+    successDiv.innerHTML = `
+        <i class="fas fa-check-circle"></i>
+        <span>${escapeHtml(message)}</span>
+        <button class="close-btn" onclick="dismissError('${successId}')" aria-label="Nachricht schließen" style="color: #155724;">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    container.appendChild(successDiv);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => dismissError(successId), 5000);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Export for use in other modules
@@ -450,3 +575,6 @@ window.App = App;
 window.showVenueDetails = showVenueDetails;
 window.showEventDetails = showEventDetails;
 window.showExhibitionDetails = showExhibitionDetails;
+window.showError = showError;
+window.showSuccess = showSuccess;
+window.dismissError = dismissError;

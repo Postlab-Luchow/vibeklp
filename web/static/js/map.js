@@ -143,7 +143,9 @@ function centerMapOnVenue(venueId) {
 // Locate User
 function locateUser() {
     if (!navigator.geolocation) {
-        alert('Geolocation wird von Ihrem Browser nicht unterstützt.');
+        if (typeof showError === 'function') {
+            showError('Geolocation wird von Ihrem Browser nicht unterstützt.');
+        }
         return;
     }
     
@@ -164,7 +166,9 @@ function locateUser() {
         },
         error => {
             console.error('Geolocation error:', error);
-            alert('Standort konnte nicht ermittelt werden.');
+            if (typeof showError === 'function') {
+                showError('Standort konnte nicht ermittelt werden.');
+            }
         }
     );
 }

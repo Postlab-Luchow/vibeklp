@@ -257,10 +257,14 @@ function importFavorites(file) {
             const favorites = JSON.parse(e.target.result);
             saveFavorites(favorites);
             loadFavorites();
-            alert('Favoriten erfolgreich importiert!');
+            if (typeof showSuccess === 'function') {
+                showSuccess('Favoriten erfolgreich importiert!');
+            }
         } catch (error) {
             console.error('Error importing favorites:', error);
-            alert('Fehler beim Importieren der Favoriten.');
+            if (typeof showError === 'function') {
+                showError('Fehler beim Importieren der Favoriten.');
+            }
         }
     };
     reader.readAsText(file);
