@@ -223,99 +223,164 @@ function switchView(view) {
 // Apply Filters
 function applyFilters() {
     const { search, date, category, bikeRoute } = App.state.filters;
+    const searchLower = search ? search.toLowerCase() : '';
     
-    // Filter venues
+    // Build lookup maps for performance
+    const eventMap = new Map(App.data.events.map(e => [e.id, e]));
+    const exhibitionMap = new Map(App.data.exhibitions.map(ex => [ex.id, ex]));
+    
+    // Filter venues (search includes venue data + events + exhibitions)
     App.data.filteredVenues = App.data.venues.filter(venue => {
-        // Search filter
-        if (search && !venue.name.toLowerCase().includes(search.toLowerCase()) &&
-            !venue.description.toLowerCase().includes(search.toLowerCase())) {
-            return false;
-        }
-        
         // Bike route filter
         if (bikeRoute && !venue.bikeRoute) {
             return false;
         }
         
+        // Get associated events and exhibitions
+        const venueEvents = (venue.eventIds || [])
+            .map(id => eventMap.get(id))
+            .filter(e => e);
+            
+        const venueExhibitions = (venue.exhibitionIds || [])
+            .map(id => exhibitionMap.get(id))
+            .filter(ex => ex);
+        
+        // Date filter - venue must have event on this date
+        if (date) {
+            const hasEventOnDate = venueEvents.some(e => e.date === date);
+            if (!hasEventOnDate) return false;
+        }
+        
+        // Category filter - venue must have event in this category
+        if (category) {
+            const hasEventInCategory = venueEvents.some(e => e.category === category);
+            if (!hasEventInCategory) return false;
+        }
+        
+        // Search filter - check venue + events + exhibitions
+        if (searchLower) {
+            // Check venue fields (with null-safety)
+            const venueMatches = 
+                venue.name.toLowerCase().includes(searchLower) ||
+                (venue.description && venue.description.toLowerCase().includes(searchLower)) ||
+                (venue.address && venue.address.city && venue.address.city.toLowerCase().includes(searchLower)) ||
+                (venue.address && venue.address.street && venue.address.street.toLowerCase().includes(searchLower));
+            
+            if (venueMatches) return true;
+            
+            // Check events at this venue
+            const eventMatches = venueEvents.some(e => 
+                e.title.toLowerCase().includes(searchLower) ||
+                (e.description && e.description.toLowerCase().includes(searchLower)) ||
+                (e.category && e.category.toLowerCase().includes(searchLower))
+            );
+            
+            if (eventMatches) return true;
+            
+            // Check exhibitions at this venue
+            const exhibitionMatches = venueExhibitions.some(ex => 
+                ex.title.toLowerCase().includes(searchLower) ||
+                (ex.description && ex.description.toLowerCase().includes(searchLower)) ||
+                (ex.artist && ex.artist.toLowerCase().includes(searchLower))
+            );
+            
+            if (!exhibitionMatches) return false;
+        }
+        
         return true;
     });
     
-    // Filter events
-    App.data.filteredEvents = App.data.events.filter(event => {
-        // Date filter
-        if (date && event.date !== date) {
-            return false;
-        }
-        
-        // Category filter
-        if (category && event.category !== category) {
-            return false;
-        }
-        
-        // Search filter
-        if (search && !event.title.toLowerCase().includes(search.toLowerCase()) &&
-            !event.description.toLowerCase().includes(search.toLowerCase())) {
-            return false;
-        }
-        
-        return true;
-    });
+    // Store filtered events for map display (events at filtered venues)
+    const filteredVenueIds = new Set(App.data.filteredVenues.map(v => v.id));
+    App.data.filteredEvents = App.data.events.filter(e => filteredVenueIds.has(e.venueId));
     
     // Update UI
     updateResults();
     updateMap();
 }
 
-// Update Results List
+// Update Results List - Show only venues
 function updateResults() {
     const resultsList = document.getElementById('results-list');
     const resultsCount = document.getElementById('results-count');
     
     resultsList.innerHTML = '';
+    resultsCount.textContent = App.data.filteredVenues.length;
     
-    // Combine venues and events
-    const results = [
-        ...App.data.filteredVenues.map(v => ({ type: 'venue', data: v })),
-        ...App.data.filteredEvents.map(e => ({ type: 'event', data: e }))
-    ];
+    // Show empty state if no results
+    if (App.data.filteredVenues.length === 0) {
+        resultsList.innerHTML = `
+            <div class="results-empty">
+                <i class="fas fa-search"></i>
+                <p>Keine Ergebnisse gefunden</p>
+                <p class="hint">Versuchen Sie andere Suchbegriffe oder Filter</p>
+            </div>
+        `;
+        return;
+    }
     
-    resultsCount.textContent = results.length;
-    
-    results.forEach(result => {
-        const item = createResultItem(result);
+    // Show only venues in results list
+    App.data.filteredVenues.forEach(venue => {
+        const item = createResultItem(venue);
         resultsList.appendChild(item);
     });
 }
 
-// Create Result Item
-function createResultItem(result) {
+// Create Result Item for Venue
+function createResultItem(venue) {
     const div = document.createElement('div');
     div.className = 'result-item';
     
-    if (result.type === 'venue') {
-        const venue = result.data;
-        div.innerHTML = `
-            <h4><i class="fas fa-map-marker-alt"></i> ${venue.name}</h4>
-            <p>${venue.address.city}</p>
-            <div class="meta">
-                <span><i class="fas fa-calendar"></i> ${venue.eventCount} Events</span>
-                <span><i class="fas fa-palette"></i> ${venue.exhibitionCount} Ausstellungen</span>
-            </div>
-        `;
-        div.addEventListener('click', () => showVenueDetails(venue.id));
-    } else {
-        const event = result.data;
-        div.innerHTML = `
-            <h4><i class="fas fa-calendar-day"></i> ${event.title}</h4>
-            <p>${event.venueName || ''}</p>
-            <div class="meta">
-                <span><i class="fas fa-clock"></i> ${formatDate(event.date)} ${event.startTime || ''}</span>
-                ${event.category ? `<span><i class="fas fa-tag"></i> ${event.category}</span>` : ''}
-            </div>
-        `;
-        div.addEventListener('click', () => showEventDetails(event.id));
+    // Calculate matching events/exhibitions for search highlight
+    const { search } = App.state.filters;
+    let matchInfo = '';
+    
+    if (search && search.length >= 2) {
+        const searchLower = search.toLowerCase();
+        const eventMap = new Map(App.data.events.map(e => [e.id, e]));
+        const exhibitionMap = new Map(App.data.exhibitions.map(ex => [ex.id, ex]));
+        
+        const venueEvents = (venue.eventIds || [])
+            .map(id => eventMap.get(id))
+            .filter(e => e);
+        const venueExhibitions = (venue.exhibitionIds || [])
+            .map(id => exhibitionMap.get(id))
+            .filter(ex => ex);
+        
+        // Count matching events
+        const matchingEvents = venueEvents.filter(e => 
+            e.title.toLowerCase().includes(searchLower) ||
+            (e.description && e.description.toLowerCase().includes(searchLower))
+        ).length;
+        
+        // Count matching exhibitions
+        const matchingExhibitions = venueExhibitions.filter(ex => 
+            ex.title.toLowerCase().includes(searchLower) ||
+            (ex.description && ex.description.toLowerCase().includes(searchLower)) ||
+            (ex.artist && ex.artist.toLowerCase().includes(searchLower))
+        ).length;
+        
+        // Build match info string
+        const matches = [];
+        if (matchingEvents > 0) matches.push(`${matchingEvents} Event${matchingEvents > 1 ? 's' : ''}`);
+        if (matchingExhibitions > 0) matches.push(`${matchingExhibitions} Ausstellung${matchingExhibitions > 1 ? 'en' : ''}`);
+        
+        if (matches.length > 0) {
+            matchInfo = `<span class="match-badge"><i class="fas fa-search"></i> ${matches.join(', ')}</span>`;
+        }
     }
     
+    div.innerHTML = `
+        <h4><i class="fas fa-map-marker-alt"></i> ${venue.name}</h4>
+        <p>${venue.address.city}</p>
+        <div class="meta">
+            <span><i class="fas fa-calendar"></i> ${venue.eventCount || 0} Events</span>
+            <span><i class="fas fa-palette"></i> ${venue.exhibitionCount || 0} Ausstellungen</span>
+            ${matchInfo}
+        </div>
+    `;
+    
+    div.addEventListener('click', () => showVenueDetails(venue.id));
     return div;
 }
 
