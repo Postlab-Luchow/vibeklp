@@ -39,7 +39,7 @@ func EventSchema() map[string]interface{} {
 								"description": "End time in HH:MM format if mentioned, otherwise empty string",
 							},
 						},
-						"required":             []string{"date", "startTime"},
+						"required":             []string{"date", "startTime", "endTime"},
 						"additionalProperties": false,
 					},
 				},
@@ -48,7 +48,7 @@ func EventSchema() map[string]interface{} {
 					"description": "Admission info from text in parentheses like (Hutkasse) or (Eintritt frei)",
 				},
 			},
-			"required":             []string{"title", "dates"},
+			"required":             []string{"title", "description", "artist", "dates", "admission"},
 			"additionalProperties": false,
 		},
 	}

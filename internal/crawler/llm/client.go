@@ -29,11 +29,17 @@ func NewClient(apiKey, model string) *OpenRouterClient {
 	}
 }
 
+// Logger interface for debug logging
+type Logger interface {
+	Printf(format string, v ...interface{})
+}
+
 // ExtractWithSchema sends HTML to LLM with JSON Schema for structured output
 func (c *OpenRouterClient) ExtractWithSchema(
 	html string,
 	schema map[string]interface{},
 	systemPrompt string,
+	logger Logger,
 ) (*ExtractionResult, error) {
 	reqBody := OpenRouterRequest{
 		Model: c.Model,
@@ -62,11 +68,30 @@ func (c *OpenRouterClient) ExtractWithSchema(
 	req.Header.Set("HTTP-Referer", "https://github.com/musche/klp")
 	req.Header.Set("X-Title", "KLP Crawler")
 
+	// Log request details
+	if logger != nil {
+		logger.Printf("[LLM DEBUG] Sending request to %s", c.BaseURL+"/chat/completions")
+		logger.Printf("[LLM DEBUG] Model: %s", c.Model)
+		logger.Printf("[LLM DEBUG] HTML size: %d bytes", len(html))
+		logger.Printf("[LLM DEBUG] System prompt size: %d bytes", len(systemPrompt))
+		logger.Printf("[LLM DEBUG] Request body size: %d bytes", len(jsonBody))
+	}
+
+	startTime := time.Now()
 	resp, err := c.HTTPClient.Do(req)
+	duration := time.Since(startTime)
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		if logger != nil {
+			logger.Printf("[LLM DEBUG] Request failed after %v: %v", duration, err)
+		}
+		return nil, fmt.Errorf("failed to send request (timeout after %v): %w", duration, err)
 	}
 	defer resp.Body.Close()
+
+	if logger != nil {
+		logger.Printf("[LLM DEBUG] Response received in %v, status: %d", duration, resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -74,11 +99,17 @@ func (c *OpenRouterClient) ExtractWithSchema(
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+		if logger != nil {
+			logger.Printf("[LLM DEBUG] Error response body: %s", string(body))
+		}
+		return nil, fmt.Errorf("API returned status %d after %v: %s", resp.StatusCode, duration, string(body))
 	}
 
 	var apiResp OpenRouterResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
+		if logger != nil {
+			logger.Printf("[LLM DEBUG] Failed to unmarshal response: %s", string(body))
+		}
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
@@ -88,6 +119,12 @@ func (c *OpenRouterClient) ExtractWithSchema(
 
 	if len(apiResp.Choices) == 0 {
 		return nil, fmt.Errorf("no choices in response")
+	}
+
+	if logger != nil {
+		logger.Printf("[LLM DEBUG] Success! Tokens - Prompt: %d, Completion: %d, Total: %d",
+			apiResp.Usage.PromptTokens, apiResp.Usage.CompletionTokens,
+			apiResp.Usage.PromptTokens+apiResp.Usage.CompletionTokens)
 	}
 
 	return &ExtractionResult{

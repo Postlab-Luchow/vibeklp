@@ -40,3 +40,8 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+.crawl_cache/*
+.or-key
+
+bin/*

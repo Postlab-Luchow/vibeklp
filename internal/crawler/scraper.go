@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"regexp"
@@ -15,14 +16,16 @@ import (
 
 // Crawler handles web scraping of kulturelle-landpartie.de
 type Crawler struct {
-	client      *http.Client
-	rateLimiter *time.Ticker
-	userAgent   string
-	baseURL     string
-	geocoder    *Geocoder
-	logger      *log.Logger
-	useLLM      bool
-	llmParser   *LLMParser
+	client          *http.Client
+	rateLimiter     *time.Ticker
+	userAgent       string
+	baseURL         string
+	geocoder        *Geocoder
+	logger          *log.Logger
+	useLLM          bool
+	llmParser       *LLMParser
+	crawlCache      *CrawlCache
+	progressTracker *ProgressTracker
 }
 
 // NewCrawler creates a new Crawler instance
@@ -41,6 +44,33 @@ func NewCrawler(logger *log.Logger) *Crawler {
 	}
 }
 
+// SetCrawlCache enables HTML caching for crawl operations
+func (c *Crawler) SetCrawlCache(cacheDir string) {
+	c.crawlCache = NewCrawlCache(cacheDir)
+	if err := c.crawlCache.EnsureDir(); err != nil {
+		c.logger.Printf("[WARN] Failed to create crawl cache directory: %v", err)
+		c.crawlCache = nil
+	} else {
+		c.logger.Printf("[INFO] Crawl cache enabled: %s", cacheDir)
+		if stats, size, err := c.crawlCache.Stats(); err == nil {
+			c.logger.Printf("[INFO] Crawl cache contains %d entries (%.2f MB)", stats, float64(size)/(1024*1024))
+		}
+	}
+}
+
+// SetProgressTracker enables progress tracking for resumable crawls
+func (c *Crawler) SetProgressTracker(trackerDir string) {
+	c.progressTracker = NewProgressTracker(trackerDir)
+	if err := c.progressTracker.Load(); err != nil {
+		c.logger.Printf("[WARN] Failed to load progress tracker: %v", err)
+	} else {
+		completed := c.progressTracker.GetCompletedCount()
+		if completed > 0 {
+			c.logger.Printf("[INFO] Resuming from previous run: %d venues already crawled", completed)
+		}
+	}
+}
+
 // NewCrawlerWithLLM creates a new Crawler instance with LLM support
 func NewCrawlerWithLLM(logger *log.Logger, apiKey, model string, cache *llm.Cache, batchSize int, dryRun bool) *Crawler {
 	c := NewCrawler(logger)
@@ -56,6 +86,18 @@ func (c *Crawler) SetGoogleMapsGeocoder(apiKey string) {
 
 // Fetch fetches a URL and returns a goquery document
 func (c *Crawler) Fetch(url string) (*goquery.Document, error) {
+	// Check crawl cache first
+	if c.crawlCache != nil {
+		if html, ok := c.crawlCache.Get(url); ok {
+			c.logger.Printf("[FETCH CACHE HIT] %s", url)
+			doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse cached HTML: %w", err)
+			}
+			return doc, nil
+		}
+	}
+
 	// Wait for rate limiter
 	<-c.rateLimiter.C
 
@@ -68,17 +110,37 @@ func (c *Crawler) Fetch(url string) (*goquery.Document, error) {
 
 	c.logger.Printf("[FETCH] %s", url)
 
+	startTime := time.Now()
 	resp, err := c.client.Do(req)
+	duration := time.Since(startTime)
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute request: %w", err)
+		return nil, fmt.Errorf("failed to execute request (after %v): %w", duration, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d (after %v)", resp.StatusCode, duration)
 	}
 
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	// Read the body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	c.logger.Printf("[FETCH COMPLETE] %s (%d bytes in %v)", url, len(body), duration)
+
+	// Cache the HTML
+	if c.crawlCache != nil {
+		if err := c.crawlCache.Set(url, string(body)); err != nil {
+			c.logger.Printf("[CACHE WARN] Failed to cache %s: %v", url, err)
+		} else {
+			c.logger.Printf("[CACHE STORED] %s", url)
+		}
+	}
+
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(string(body)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse HTML: %w", err)
 	}
@@ -280,17 +342,41 @@ func (c *Crawler) CrawlVenues() ([]storage.Venue, error) {
 
 // CrawlVenueDetails crawls a single venue page and extracts all data
 func (c *Crawler) CrawlVenueDetails(url string) (*storage.Venue, []storage.Event, []storage.Exhibition, error) {
+	// Check if already completed
+	if c.progressTracker != nil && c.progressTracker.IsCompleted(url) {
+		c.logger.Printf("[CACHE SKIP] Already crawled: %s", url)
+		return nil, nil, nil, fmt.Errorf("already crawled")
+	}
+
 	doc, err := c.Fetch(url)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
+	var venue *storage.Venue
+	var events []storage.Event
+	var exhibitions []storage.Exhibition
+
 	// Use LLM if enabled
 	if c.useLLM {
-		return c.crawlWithLLM(doc, url)
+		venue, events, exhibitions, err = c.crawlWithLLM(doc, url)
+	} else {
+		venue, events, exhibitions, err = c.crawlWithRegex(doc, url)
 	}
 
-	return c.crawlWithRegex(doc, url)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Mark as completed
+	if c.progressTracker != nil {
+		c.progressTracker.MarkCompleted(url)
+		if err := c.progressTracker.Save(); err != nil {
+			c.logger.Printf("[WARN] Failed to save progress: %v", err)
+		}
+	}
+
+	return venue, events, exhibitions, nil
 }
 
 // crawlWithLLM uses LLM for parsing
@@ -361,7 +447,6 @@ func (c *Crawler) crawlWithLLM(doc *goquery.Document, url string) (*storage.Venu
 
 // crawlWithRegex uses regex-based parsing (original implementation)
 func (c *Crawler) crawlWithRegex(doc *goquery.Document, url string) (*storage.Venue, []storage.Event, []storage.Exhibition, error) {
-
 	// Extract venue name from h1
 	venueName := CleanText(doc.Find("h1").First().Text())
 	if venueName == "" {
@@ -587,4 +672,85 @@ func (c *Crawler) CrawlExhibitions(venues []storage.Venue) ([]storage.Exhibition
 // GetLLMParser returns the LLM parser (nil if not using LLM)
 func (c *Crawler) GetLLMParser() *LLMParser {
 	return c.llmParser
+}
+
+// HasCrawlCache returns true if crawl cache is configured
+func (c *Crawler) HasCrawlCache() bool {
+	return c.crawlCache != nil
+}
+
+// ParseCachedVenues parses all cached HTML files using LLM
+// This allows re-parsing cached data without re-fetching from the website
+func (c *Crawler) ParseCachedVenues() ([]storage.Venue, []storage.Event, []storage.Exhibition, error) {
+	if !c.useLLM {
+		return nil, nil, nil, fmt.Errorf("LLM parsing is not enabled. Use NewCrawlerWithLLM() to enable LLM parsing")
+	}
+
+	if c.crawlCache == nil {
+		return nil, nil, nil, fmt.Errorf("no crawl cache configured")
+	}
+
+	urls, err := c.crawlCache.GetAllCachedURLs()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get cached URLs: %w", err)
+	}
+
+	// Filter to only venue URLs (not pagination pages)
+	var venueURLs []string
+	for _, url := range urls {
+		if strings.Contains(url, "/orte/") && strings.HasSuffix(url, ".html") && !strings.Contains(url, "/orte.html") {
+			venueURLs = append(venueURLs, url)
+		}
+	}
+
+	c.logger.Printf("[INFO] Found %d cached venue URLs to parse", len(venueURLs))
+
+	var allVenues []storage.Venue
+	var allEvents []storage.Event
+	var allExhibitions []storage.Exhibition
+
+	for i, url := range venueURLs {
+		c.logger.Printf("[PROGRESS] %d/%d (%.1f%%) - Parsing cached: %s",
+			i+1, len(venueURLs), float64(i+1)/float64(len(venueURLs))*100, url)
+
+		venue, events, exhibitions, err := c.ParseCachedVenue(url)
+		if err != nil {
+			c.logger.Printf("[ERROR] Failed to parse cached venue %s: %v", url, err)
+			continue
+		}
+
+		allVenues = append(allVenues, *venue)
+		allEvents = append(allEvents, events...)
+		allExhibitions = append(allExhibitions, exhibitions...)
+	}
+
+	c.logger.Printf("[INFO] Parsed %d venues, %d events, %d exhibitions from cache",
+		len(allVenues), len(allEvents), len(allExhibitions))
+
+	return allVenues, allEvents, allExhibitions, nil
+}
+
+// ParseCachedVenue parses a single cached venue HTML using LLM
+func (c *Crawler) ParseCachedVenue(url string) (*storage.Venue, []storage.Event, []storage.Exhibition, error) {
+	if !c.useLLM {
+		return nil, nil, nil, fmt.Errorf("LLM parsing is not enabled")
+	}
+
+	if c.crawlCache == nil {
+		return nil, nil, nil, fmt.Errorf("no crawl cache configured")
+	}
+
+	entry, ok := c.crawlCache.GetCachedEntry(url)
+	if !ok {
+		return nil, nil, nil, fmt.Errorf("URL not found in cache: %s", url)
+	}
+
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(entry.HTML))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to parse cached HTML: %w", err)
+	}
+
+	c.logger.Printf("[CACHE PARSE] %s (cached at %s)", url, entry.Timestamp.Format(time.RFC3339))
+
+	return c.crawlWithLLM(doc, url)
 }

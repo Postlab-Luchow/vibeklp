@@ -51,6 +51,7 @@ func VenueSchema() map[string]interface{} {
 							"description": "Full website URL with http/https",
 						},
 					},
+					"required":             []string{"phone", "email", "website"},
 					"additionalProperties": false,
 				},
 				"bikeRoute": map[string]interface{}{
@@ -58,7 +59,7 @@ func VenueSchema() map[string]interface{} {
 					"description": "Bike route number mentioned in 'Fahrradtour: X'",
 				},
 			},
-			"required":             []string{"name", "address"},
+			"required":             []string{"name", "description", "address", "contact", "bikeRoute"},
 			"additionalProperties": false,
 		},
 	}

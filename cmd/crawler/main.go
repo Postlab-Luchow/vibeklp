@@ -26,6 +26,16 @@ func main() {
 	llmBatchSize := flag.Int("llm-batch-size", 5, "Number of items to process per LLM API call")
 	dryRun := flag.Bool("dry-run", false, "Show what would be extracted without making API calls")
 
+	// Crawl caching flags
+	crawlCacheDir := flag.String("crawl-cache-dir", "./.crawl_cache", "Directory for crawled HTML cache")
+	useCrawlCache := flag.Bool("use-crawl-cache", true, "Cache crawled HTML to avoid re-fetching on retry")
+	clearCrawlCache := flag.Bool("clear-crawl-cache", false, "Clear crawl cache before starting")
+	progressDir := flag.String("progress-dir", "./.crawl_cache", "Directory for progress tracking")
+
+	// Parse cached mode - parse existing cache without fetching
+	parseCached := flag.Bool("parse-cached", false, "Parse cached HTML with LLM without fetching (requires --use-llm and existing cache)")
+	fetchOnly := flag.Bool("fetch-only", false, "Only fetch and cache HTML, skip parsing")
+
 	flag.Parse()
 
 	// Setup logger
@@ -76,13 +86,68 @@ func main() {
 		c.SetGoogleMapsGeocoder(*googleAPIKey)
 		logger.Println("Using Google Maps Geocoding API")
 	}
+
+	// Setup crawl cache and progress tracking
+	if *useCrawlCache {
+		c.SetCrawlCache(*crawlCacheDir)
+		c.SetProgressTracker(*progressDir)
+	}
+
+	if *clearCrawlCache && *crawlCacheDir != "" {
+		logger.Printf("[INFO] Clearing crawl cache: %s", *crawlCacheDir)
+		cache := crawler.NewCrawlCache(*crawlCacheDir)
+		if err := cache.Clear(); err != nil {
+			logger.Printf("[WARN] Failed to clear crawl cache: %v", err)
+		} else {
+			logger.Println("[INFO] Crawl cache cleared")
+		}
+	}
+
 	defer c.Close()
 
-	// Crawl all data
-	logger.Println("\n[STEP 1/2] Crawling all venues, events, and exhibitions...")
-	venues, events, exhibitions, err := c.CrawlAll()
-	if err != nil {
-		log.Fatalf("Failed to crawl data: %v", err)
+	var venues []storage.Venue
+	var events []storage.Event
+	var exhibitions []storage.Exhibition
+	var err error
+
+	// Handle different modes
+	if *parseCached {
+		// Mode: Parse cached HTML with LLM (no fetching)
+		if !*useLLM {
+			log.Fatal("--parse-cached requires --use-llm flag")
+		}
+		if !c.HasCrawlCache() {
+			log.Fatal("--parse-cached requires crawl cache. Use --use-crawl-cache flag")
+		}
+
+		logger.Println("\n[MODE] Parsing cached HTML with LLM (no fetching)...")
+		venues, events, exhibitions, err = c.ParseCachedVenues()
+		if err != nil {
+			log.Fatalf("Failed to parse cached data: %v", err)
+		}
+	} else if *fetchOnly {
+		// Mode: Only fetch and cache HTML, skip parsing
+		logger.Println("\n[MODE] Fetch-only mode: caching HTML without parsing...")
+		if !c.HasCrawlCache() {
+			log.Fatal("--fetch-only requires crawl cache. Use --use-crawl-cache flag")
+		}
+
+		// Just run CrawlAll but don't save results
+		_, _, _, err = c.CrawlAll()
+		if err != nil {
+			log.Fatalf("Failed to fetch data: %v", err)
+		}
+
+		logger.Println("\n=== Fetch Complete ===")
+		logger.Println("HTML cached successfully. Run with --parse-cached to parse with LLM.")
+		return
+	} else {
+		// Mode: Normal crawl (fetch + parse)
+		logger.Println("\n[STEP 1/2] Crawling all venues, events, and exhibitions...")
+		venues, events, exhibitions, err = c.CrawlAll()
+		if err != nil {
+			log.Fatalf("Failed to crawl data: %v", err)
+		}
 	}
 
 	logger.Printf("✓ Crawled %d venues, %d events, %d exhibitions",

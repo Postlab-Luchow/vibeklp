@@ -69,7 +69,7 @@ Rules:
 5. Extract bike route number from "Fahrradtour: X" text
 6. Return ONLY valid JSON matching the schema exactly`
 
-	result, err := p.client.ExtractWithSchema(html, schema, systemPrompt)
+	result, err := p.client.ExtractWithSchema(html, schema, systemPrompt, p.logger)
 	if err != nil {
 		return nil, fmt.Errorf("LLM extraction failed: %w", err)
 	}
@@ -144,7 +144,7 @@ Important rules:
 5. Return ALL events found in the HTML
 6. Each item in the HTML is separated by "---EVENT_SEPARATOR---"`, venueName)
 
-	result, err := p.client.ExtractWithSchema(combinedHTML, batchSchema, systemPrompt)
+	result, err := p.client.ExtractWithSchema(combinedHTML, batchSchema, systemPrompt, p.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ Important rules:
 4. Return ALL exhibitions found in the HTML
 5. Each item in the HTML is separated by "---EVENT_SEPARATOR---"`, venueName)
 
-	result, err := p.client.ExtractWithSchema(combinedHTML, batchSchema, systemPrompt)
+	result, err := p.client.ExtractWithSchema(combinedHTML, batchSchema, systemPrompt, p.logger)
 	if err != nil {
 		return nil, err
 	}

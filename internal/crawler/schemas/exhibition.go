@@ -21,7 +21,7 @@ func ExhibitionSchema() map[string]interface{} {
 					"description": "Artist name from first <p> tag",
 				},
 			},
-			"required":             []string{"title"},
+			"required":             []string{"title", "description", "artist"},
 			"additionalProperties": false,
 		},
 	}
