@@ -6,9 +6,13 @@ Eine moderne Web-Anwendung für das Kulturfestival "Kulturelle Landpartie" mit i
 
 - 🗺️ **Interaktive Karte** mit allen 87 Veranstaltungsorten
 - 📅 **Kalenderansicht** für alle Events und Ausstellungen
-- 🔍 **Filter & Suche** nach Datum, Kategorie und Ort
+- 🔍 **Intelligente Suche** nach Orten, Events und Ausstellungen
+  - Durchsucht Veranstaltungsorte, Events und Ausstellungen
+  - Zeigt passende Treffer mit Markierungen an
+  - Filterung nach Datum, Kategorie und Fahrradroute
 - ⭐ **Favoritenliste** mit LocalStorage-Persistierung
 - 🚴 **Routenplanung** zwischen Veranstaltungsorten
+- 🔔 **Benutzerfreundliche Fehlerbehandlung** mit Inline-Nachrichten
 - 📱 **Responsive Design** für alle Geräte
 
 ## Technologie-Stack

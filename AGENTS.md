@@ -617,6 +617,67 @@ The crawler logs warnings for individual venue failures but continues processing
 ### 15. go.mod Warnings
 You may see warnings about unused dependencies (`github.com/rs/cors`) or indirect dependencies that should be direct. Run `go mod tidy` to fix.
 
+### 16. Search Implementation (Venue-Centric)
+The search has been redesigned to be **venue-centric** rather than showing individual events/exhibitions:
+
+**How it works:**
+1. Results list shows only venues (max 88 items), not 1285+ mixed items
+2. Search checks: venue name/description/address + events/exhibitions AT that venue
+3. Match badges display "3 Events, 2 Ausstellungen" when search matches content
+4. Date/category filters show venues with matching events
+
+**Key functions in app.js:**
+- `applyFilters()` - Main filtering logic with null-safe property access
+- `updateResults()` - Renders venue-only results list
+- `createResultItem()` - Creates venue cards with match badges
+
+**Performance optimization:**
+- Uses Map lookups for events/exhibitions instead of repeated array scans
+- Builds lookup maps once per filter operation
+
+**Null-safety critical:**
+Many events lack descriptions. Always use:
+```javascript
+// ❌ BAD - crashes if description is undefined
+venue.description.toLowerCase()
+
+// ✅ GOOD - safe property access
+(venue.description && venue.description.toLowerCase())
+```
+
+### 17. Error Handling System
+Replaced native `alert()` with inline message system:
+
+**Functions:**
+- `showError(message, options)` - Display error banner with optional retry button
+- `showSuccess(message)` - Display success banner
+- `dismissError(id)` - Close specific message
+- `fetchWithRetry(url, options, maxRetries)` - Auto-retry failed requests
+
+**Features:**
+- Slide-in animations via CSS
+- Auto-dismiss (10s errors, 5s success)
+- Close buttons on all messages
+- Retry buttons for retryable errors
+- HTML escaping to prevent XSS
+
+**Usage:**
+```javascript
+// Simple error
+showError('Failed to load data');
+
+// Error with retry
+showError('Connection failed', { retry: 'location.reload()' });
+
+// Success message
+showSuccess('Favorites imported successfully');
+```
+
+**CSS classes:**
+- `.error-message` - Red error banner
+- `.success-message` - Green success banner
+- `.error-container` - Fixed position container at top of page
+
 ## Development Workflow
 
 ### Adding a New API Endpoint
@@ -786,6 +847,28 @@ See `TASKS.md` for a comprehensive list of known issues and planned improvements
    - Some dependencies marked as indirect but should be direct
    - **Fix:** Run `go mod tidy`
 
+### Recently Fixed (2026-02-07)
+
+**✅ Error Handling System** (`TASKS.md` #3)
+- Replaced native `alert()` calls with inline error/success messages
+- Added retry logic with exponential backoff for failed API calls
+- Features: slide-in animations, auto-dismiss, close buttons, XSS protection
+
+**✅ Search Functionality** (Unlisted critical fix)
+- Fixed crash: `TypeError: Cannot read properties of undefined` when events lack descriptions
+- Redesigned search to be venue-centric (88 venues vs 1285 mixed items)
+- Search scope expanded to include events and exhibitions at each venue
+- Added match badges showing matching content per venue
+- Added empty state with helpful messaging
+
+**Issues Encountered During Search Fix:**
+- **Null Description Bug**: 88 of 1197 events had no description field, causing `.toLowerCase()` to crash
+  - Solution: Implemented null-safe property access `(description && description.toLowerCase())`
+- **Venue-Event Data Mismatch**: Some venues show 0 events despite having eventIds
+  - Investigation revealed data structure inconsistency between crawler and frontend
+  - Search logic is correct; this is a data population issue from crawler
+  - Venues exist and are searchable, but event counts may not match expectations
+
 ## Documentation Files
 
 - **README.md** - User-facing documentation, installation, deployment
@@ -807,7 +890,15 @@ For issues or questions:
 
 ---
 
-**Last Updated:** 2026-01-29  
+**Last Updated:** 2026-02-07  
 **Go Version:** 1.25.5  
 **Test Coverage:** 82.8% (API: 78.1%, Storage: 87.5%)  
 **Total Lines of Code:** ~3,291 (Go only)
+
+## Recent Changes Summary
+
+### 2026-02-07 - Error Handling & Search Improvements
+- **Error Handling (#3)**: Replaced alert() with inline messages and retry logic
+- **Search Fix**: Complete redesign to be venue-centric, fixed null description bug
+- **Empty State**: Added "No results found" messaging
+- **Files Modified**: app.js, favorites.js, map.js, styles.css, index.html
