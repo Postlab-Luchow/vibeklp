@@ -12,6 +12,7 @@ const App = {
         currentView: 'map',
         selectedVenue: null,
         selectedEvent: null,
+        modalStack: [],
         filters: {
             search: '',
             date: '',
@@ -391,10 +392,10 @@ function createResultItem(venue) {
     return div;
 }
 
-// Show Venue Details
-async function showVenueDetails(venueId) {
+// Modal stack — supports back-navigation between modals (e.g. venue → event → back to venue)
+async function _renderVenueModal(venueId) {
     showLoading();
-    
+
     try {
         const response = await fetch(`${API_BASE}/venues/${venueId}`);
         const venue = await response.json();
@@ -424,15 +425,15 @@ async function showVenueDetails(venueId) {
                 <h3><i class="fas fa-calendar"></i> ${eventsHeading}</h3>
                 <div class="event-grid">
                     ${venueEvents.map(e => `
-                        <div class="event-card" onclick="showEventDetails('${e.id}')">
-                            <div class="time">${e.startTime || ''}</div>
+                        <div class="event-card" onclick="pushModal('event', '${e.id}')">
+                            <div class="time">${formatDate(e.date)}${e.startTime ? ' · ' + e.startTime : ''}</div>
                             <h4>${e.title}</h4>
                             ${e.category ? `<span class="category">${e.category}</span>` : ''}
                         </div>
                     `).join('')}
                 </div>
             ` : ''}
-            
+
             ${venue.exhibitions && venue.exhibitions.length > 0 ? `
                 <h3><i class="fas fa-palette"></i> Ausstellungen (${venue.exhibitions.length})</h3>
                 <div class="event-grid">
@@ -445,7 +446,7 @@ async function showVenueDetails(venueId) {
                     `).join('')}
                 </div>
             ` : ''}
-            
+
             <div class="popup-actions">
                 <button class="btn-primary" onclick="centerMapOnVenue('${venue.id}')">
                     <i class="fas fa-map"></i> Auf Karte zeigen
@@ -455,7 +456,7 @@ async function showVenueDetails(venueId) {
                 </button>
             </div>
         `;
-        
+
         modal.classList.add('active');
         hideLoading();
     } catch (error) {
@@ -464,32 +465,31 @@ async function showVenueDetails(venueId) {
     }
 }
 
-// Show Event Details
-async function showEventDetails(eventId) {
+async function _renderEventModal(eventId) {
     showLoading();
-    
+
     try {
         const response = await fetch(`${API_BASE}/events/${eventId}`);
         const event = await response.json();
-        
+
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
-        
+
         content.innerHTML = `
             <h2>${event.title}</h2>
             <p>${event.description || ''}</p>
-            
+
             <h3><i class="fas fa-calendar"></i> Wann</h3>
             <p>${formatDate(event.date)} ${event.startTime ? `um ${event.startTime} Uhr` : ''}</p>
-            
+
             ${event.venue ? `
                 <h3><i class="fas fa-map-marker-alt"></i> Wo</h3>
                 <p>${event.venue.name}<br>${event.venue.address.street}<br>${event.venue.address.postalCode} ${event.venue.address.city}</p>
             ` : ''}
-            
+
             ${event.admission ? `<p><i class="fas fa-ticket-alt"></i> Eintritt: ${event.admission}</p>` : ''}
             ${event.category ? `<p><i class="fas fa-tag"></i> Kategorie: ${event.category}</p>` : ''}
-            
+
             <div class="popup-actions">
                 ${event.venue ? `
                     <button class="btn-primary" onclick="centerMapOnVenue('${event.venueId}')">
@@ -501,7 +501,7 @@ async function showEventDetails(eventId) {
                 </button>
             </div>
         `;
-        
+
         modal.classList.add('active');
         hideLoading();
     } catch (error) {
@@ -510,29 +510,28 @@ async function showEventDetails(eventId) {
     }
 }
 
-// Show Exhibition Details
-async function showExhibitionDetails(exhibitionId) {
+async function _renderExhibitionModal(exhibitionId) {
     showLoading();
-    
+
     try {
         const response = await fetch(`${API_BASE}/exhibitions/${exhibitionId}`);
         const exhibition = await response.json();
-        
+
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
-        
+
         content.innerHTML = `
             <h2>${exhibition.title}</h2>
             ${exhibition.artist ? `<p style="font-style: italic; color: #666; margin-top: -0.5rem;"><i class="fas fa-palette"></i> ${exhibition.artist}</p>` : ''}
             ${exhibition.description ? `<p>${exhibition.description}</p>` : ''}
-            
+
             ${exhibition.venue ? `
                 <h3><i class="fas fa-map-marker-alt"></i> Wo</h3>
                 <p>${exhibition.venue.name}<br>${exhibition.venue.address.street}<br>${exhibition.venue.address.postalCode} ${exhibition.venue.address.city}</p>
             ` : ''}
-            
+
             ${exhibition.category ? `<p><i class="fas fa-tag"></i> Kategorie: ${exhibition.category}</p>` : ''}
-            
+
             <div class="popup-actions">
                 ${exhibition.venue ? `
                     <button class="btn-primary" onclick="centerMapOnVenue('${exhibition.venueId}')">
@@ -544,7 +543,7 @@ async function showExhibitionDetails(exhibitionId) {
                 </button>
             </div>
         `;
-        
+
         modal.classList.add('active');
         hideLoading();
     } catch (error) {
@@ -553,15 +552,55 @@ async function showExhibitionDetails(exhibitionId) {
     }
 }
 
-// Close Modal
-document.querySelector('.modal-close')?.addEventListener('click', () => {
+function _renderTopOfModalStack() {
+    const top = App.state.modalStack[App.state.modalStack.length - 1];
+    if (!top) return;
+    if (top.type === 'venue') return _renderVenueModal(top.id);
+    if (top.type === 'event') return _renderEventModal(top.id);
+    if (top.type === 'exhibition') return _renderExhibitionModal(top.id);
+}
+
+// Public entry points (always reset the modal stack)
+function showVenueDetails(venueId) {
+    App.state.modalStack = [{ type: 'venue', id: venueId }];
+    return _renderVenueModal(venueId);
+}
+
+function showEventDetails(eventId) {
+    App.state.modalStack = [{ type: 'event', id: eventId }];
+    return _renderEventModal(eventId);
+}
+
+function showExhibitionDetails(exhibitionId) {
+    App.state.modalStack = [{ type: 'exhibition', id: exhibitionId }];
+    return _renderExhibitionModal(exhibitionId);
+}
+
+// Push a new modal on top of the stack — used when navigating from one modal to another
+function pushModal(type, id) {
+    App.state.modalStack.push({ type, id });
+    return _renderTopOfModalStack();
+}
+
+// Close the topmost modal — pops back to the previous one if any, otherwise hides
+function closeModal() {
+    App.state.modalStack.pop();
+    if (App.state.modalStack.length > 0) {
+        return _renderTopOfModalStack();
+    }
+    hideModal();
+}
+
+// Force-hide the modal and clear navigation history (used by "Auf Karte zeigen" etc.)
+function hideModal() {
+    App.state.modalStack = [];
     document.getElementById('detail-modal').classList.remove('active');
-});
+}
+
+document.querySelector('.modal-close')?.addEventListener('click', closeModal);
 
 document.getElementById('detail-modal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'detail-modal') {
-        document.getElementById('detail-modal').classList.remove('active');
-    }
+    if (e.target.id === 'detail-modal') closeModal();
 });
 
 // Utility Functions
@@ -654,6 +693,9 @@ window.App = App;
 window.showVenueDetails = showVenueDetails;
 window.showEventDetails = showEventDetails;
 window.showExhibitionDetails = showExhibitionDetails;
+window.pushModal = pushModal;
+window.closeModal = closeModal;
+window.hideModal = hideModal;
 window.showError = showError;
 window.showSuccess = showSuccess;
 window.dismissError = dismissError;

@@ -125,9 +125,9 @@ function centerMapOnVenue(venueId) {
     
     // Switch to map view
     switchView('map');
-    
-    // Close modal
-    document.getElementById('detail-modal').classList.remove('active');
+
+    // Force-close modal (clears the modal back-stack)
+    hideModal();
     
     // Center and zoom to venue
     App.map.setView([venue.coordinates.lat, venue.coordinates.lng], 15);
