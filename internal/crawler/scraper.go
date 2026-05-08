@@ -148,65 +148,81 @@ func (c *Crawler) Fetch(url string) (*goquery.Document, error) {
 	return doc, nil
 }
 
+// discoverVenueLinks fetches /orte.html and the per-letter pages it links to,
+// harvesting venue URLs from each page's .intnavi block. The site no longer
+// lists every venue on /orte.html — that page only carries an alphabetical
+// jump list, where each letter points to the first venue starting with that
+// letter. The full sibling list for a letter lives in the .intnavi block on
+// each individual venue page.
+func (c *Crawler) discoverVenueLinks() (map[string]bool, error) {
+	venueLinks := make(map[string]bool)
+
+	indexURL := c.baseURL + "/orte.html"
+	indexDoc, err := c.Fetch(indexURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch %s: %w", indexURL, err)
+	}
+
+	letterURLs := make(map[string]bool)
+	indexDoc.Find(".listnavi a").Each(func(i int, s *goquery.Selection) {
+		href, exists := s.Attr("href")
+		if !exists {
+			return
+		}
+		class, _ := s.Attr("class")
+		if strings.Contains(class, "step") {
+			return
+		}
+		if !strings.HasPrefix(href, "/orte/") || !strings.HasSuffix(href, ".html") {
+			return
+		}
+		letterURLs[href] = true
+	})
+
+	if len(letterURLs) == 0 {
+		return nil, fmt.Errorf("no letter-jump links found on %s — site structure may have changed", indexURL)
+	}
+
+	c.logger.Printf("[INFO] Found %d letter-jump pages on /orte.html", len(letterURLs))
+
+	for href := range letterURLs {
+		venueLinks[href] = true
+
+		doc, err := c.Fetch(c.baseURL + href)
+		if err != nil {
+			c.logger.Printf("[ERROR] Failed to fetch letter page %s: %v", href, err)
+			continue
+		}
+
+		before := len(venueLinks)
+		doc.Find(".intnavi a").Each(func(i int, s *goquery.Selection) {
+			link, exists := s.Attr("href")
+			if !exists {
+				return
+			}
+			if link == "/orte.html" {
+				return
+			}
+			if strings.HasPrefix(link, "/orte/") && strings.HasSuffix(link, ".html") {
+				venueLinks[link] = true
+			}
+		})
+		c.logger.Printf("[INFO] Letter page %s added %d venues (total: %d)", href, len(venueLinks)-before, len(venueLinks))
+	}
+
+	return venueLinks, nil
+}
+
 // CrawlAll crawls all venues, events, and exhibitions
 func (c *Crawler) CrawlAll() ([]storage.Venue, []storage.Event, []storage.Exhibition, error) {
 	c.logger.Println("[INFO] Starting comprehensive crawl...")
 
-	venueLinks := make(map[string]bool)
-	currentPage := "/orte.html"
-	visitedPages := make(map[string]bool)
-
-	// Follow pagination to collect all venue links
-	for currentPage != "" {
-		if visitedPages[currentPage] {
-			break
-		}
-		visitedPages[currentPage] = true
-
-		url := c.baseURL + currentPage
-		doc, err := c.Fetch(url)
-		if err != nil {
-			c.logger.Printf("[ERROR] Failed to fetch page %s: %v", currentPage, err)
-			break
-		}
-
-		// Find all venue links on this page
-		doc.Find("a[href*='/orte/']").Each(func(i int, s *goquery.Selection) {
-			href, exists := s.Attr("href")
-			if !exists {
-				return
-			}
-
-			if href == "/orte.html" || href == "/orte" || href == "/orte/" {
-				return
-			}
-
-			if strings.HasPrefix(href, "/orte/") && strings.HasSuffix(href, ".html") {
-				class, _ := s.Attr("class")
-				title, _ := s.Attr("title")
-				if strings.Contains(class, "step") || strings.Contains(title, "Seite") {
-					return
-				}
-				venueLinks[href] = true
-			}
-		})
-
-		// Find next page link
-		nextPage := ""
-		doc.Find("a.step").Each(func(i int, s *goquery.Selection) {
-			title, _ := s.Attr("title")
-			if strings.Contains(title, "nächste") || s.Text() == "►" {
-				if href, exists := s.Attr("href"); exists {
-					nextPage = href
-				}
-			}
-		})
-
-		c.logger.Printf("[INFO] Page %s: found %d total unique venues so far", currentPage, len(venueLinks))
-		currentPage = nextPage
+	venueLinks, err := c.discoverVenueLinks()
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
-	c.logger.Printf("[INFO] Found %d unique venue links across all pages", len(venueLinks))
+	c.logger.Printf("[INFO] Found %d unique venue links", len(venueLinks))
 
 	// Now crawl each venue
 	var allVenues []storage.Venue
@@ -238,73 +254,16 @@ func (c *Crawler) CrawlAll() ([]storage.Venue, []storage.Event, []storage.Exhibi
 	return allVenues, allEvents, allExhibitions, nil
 }
 
-// CrawlVenues crawls all venues by following pagination (deprecated - use CrawlAll)
+// CrawlVenues crawls all venues (deprecated - use CrawlAll)
 func (c *Crawler) CrawlVenues() ([]storage.Venue, error) {
 	c.logger.Println("[INFO] Starting venue crawl...")
 
-	venueLinks := make(map[string]bool) // Track unique venue URLs
-	currentPage := "/orte.html"
-	visitedPages := make(map[string]bool)
-
-	// Follow pagination to collect all venue links
-	for currentPage != "" {
-		if visitedPages[currentPage] {
-			break // Avoid infinite loops
-		}
-		visitedPages[currentPage] = true
-
-		url := c.baseURL + currentPage
-		doc, err := c.Fetch(url)
-		if err != nil {
-			c.logger.Printf("[ERROR] Failed to fetch page %s: %v", currentPage, err)
-			break
-		}
-
-		// Find all venue links on this page
-		doc.Find("a[href*='/orte/']").Each(func(i int, s *goquery.Selection) {
-			href, exists := s.Attr("href")
-			if !exists {
-				return
-			}
-
-			// Skip navigation links and the index page itself
-			if href == "/orte.html" || href == "/orte" || href == "/orte/" {
-				return
-			}
-
-			// Only include actual venue pages (not navigation)
-			if strings.HasPrefix(href, "/orte/") && strings.HasSuffix(href, ".html") {
-				// Check if this is a navigation link (has class="step" or title with "Seite")
-				class, _ := s.Attr("class")
-				title, _ := s.Attr("title")
-				if strings.Contains(class, "step") || strings.Contains(title, "Seite") {
-					// This might be the next page link
-					if strings.Contains(title, "nächste") || s.Text() == "►" {
-						// Don't add as venue, but we'll use it for pagination below
-					}
-					return
-				}
-
-				venueLinks[href] = true
-			}
-		})
-
-		// Find next page link
-		nextPage := ""
-		doc.Find("a.step").Each(func(i int, s *goquery.Selection) {
-			title, _ := s.Attr("title")
-			if strings.Contains(title, "nächste") || s.Text() == "►" {
-				if href, exists := s.Attr("href"); exists {
-					nextPage = href
-				}
-			}
-		})
-
-		c.logger.Printf("[INFO] Page %s: found %d total unique venues so far", currentPage, len(venueLinks))
-		currentPage = nextPage
+	venueLinks, err := c.discoverVenueLinks()
+	if err != nil {
+		return nil, err
 	}
 
-	c.logger.Printf("[INFO] Found %d unique venue links across all pages", len(venueLinks))
+	c.logger.Printf("[INFO] Found %d unique venue links", len(venueLinks))
 
 	// Now crawl each venue
 	var allVenues []storage.Venue
