@@ -398,25 +398,32 @@ async function showVenueDetails(venueId) {
     try {
         const response = await fetch(`${API_BASE}/venues/${venueId}`);
         const venue = await response.json();
-        
+
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
-        
+
+        // Respect the active date filter so the modal only shows events on that day
+        const dateFilter = App.state.filters.date;
+        const venueEvents = (venue.events || []).filter(e => !dateFilter || e.date === dateFilter);
+        const eventsHeading = dateFilter
+            ? `Veranstaltungen am ${formatDate(dateFilter)} (${venueEvents.length})`
+            : `Veranstaltungen (${venueEvents.length})`;
+
         content.innerHTML = `
             <h2>${venue.name}</h2>
             <p>${venue.description || ''}</p>
-            
+
             <h3><i class="fas fa-map-marker-alt"></i> Adresse</h3>
             <p>${venue.address.street}<br>${venue.address.postalCode} ${venue.address.city}</p>
-            
+
             ${venue.contact.phone ? `<p><i class="fas fa-phone"></i> ${venue.contact.phone}</p>` : ''}
             ${venue.contact.email ? `<p><i class="fas fa-envelope"></i> ${venue.contact.email}</p>` : ''}
             ${venue.contact.website ? `<p><i class="fas fa-globe"></i> <a href="${venue.contact.website}" target="_blank">${venue.contact.website}</a></p>` : ''}
-            
-            ${venue.events && venue.events.length > 0 ? `
-                <h3><i class="fas fa-calendar"></i> Veranstaltungen (${venue.events.length})</h3>
+
+            ${venueEvents.length > 0 ? `
+                <h3><i class="fas fa-calendar"></i> ${eventsHeading}</h3>
                 <div class="event-grid">
-                    ${venue.events.map(e => `
+                    ${venueEvents.map(e => `
                         <div class="event-card" onclick="showEventDetails('${e.id}')">
                             <div class="time">${e.startTime || ''}</div>
                             <h4>${e.title}</h4>
