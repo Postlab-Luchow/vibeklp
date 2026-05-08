@@ -139,10 +139,13 @@ Extract ALL events from the provided HTML. The venue is "%s".
 Important rules:
 1. Extract ALL dates - events can have multiple dates listed on separate lines (e.g., "30.05. 11:00<br>31.05. 11:00")
 2. Convert dates from DD.MM. format to YYYY-MM-DD format (year is always 2026)
-3. Times are in 24-hour HH:MM format
-4. Admission info is usually in parentheses like (Hutkasse) or (Eintritt frei)
-5. Return ALL events found in the HTML
-6. Each item in the HTML is separated by "---EVENT_SEPARATOR---"`, venueName)
+3. Each "DD.MM. HH:MM" entry is a single occurrence whose time is ALWAYS the startTime. Never put a single time into endTime.
+4. endTime is empty UNLESS the title or description explicitly contains a time range like "18:30 – 21:00 Uhr" — in that case use the second time as endTime.
+5. If the same date appears with two different times (e.g. "19.05. 13:00" and "19.05. 20:30"), emit TWO separate date entries, each with its own startTime.
+6. Times are in 24-hour HH:MM format
+7. Admission info is usually in parentheses like (Hutkasse) or (Eintritt frei)
+8. Return ALL events found in the HTML
+9. Each item in the HTML is separated by "---EVENT_SEPARATOR---"`, venueName)
 
 	result, err := p.client.ExtractWithSchema(combinedHTML, batchSchema, systemPrompt, p.logger)
 	if err != nil {
@@ -308,15 +311,19 @@ func (p *LLMParser) unmarshalEventsBatch(jsonStr, venueID, venueName string) ([]
 	for _, e := range result.Events {
 		// Create separate event for each date
 		for _, d := range e.Dates {
+			startTime, endTime := d.StartTime, d.EndTime
+			if startTime == "" && endTime != "" {
+				startTime, endTime = endTime, ""
+			}
 			event := storage.Event{
-				ID:          GenerateID("event", e.Title+venueID+d.Date),
+				ID:          GenerateID("event", e.Title+venueID+d.Date+startTime),
 				Title:       e.Title,
 				Description: e.Description,
 				VenueID:     venueID,
 				VenueName:   venueName,
 				Date:        d.Date,
-				StartTime:   d.StartTime,
-				EndTime:     d.EndTime,
+				StartTime:   startTime,
+				EndTime:     endTime,
 				Category:    e.Artist,
 				Admission:   e.Admission,
 			}

@@ -340,12 +340,24 @@ func (c *Crawler) CrawlVenueDetails(url string) (*storage.Venue, []storage.Event
 
 // crawlWithLLM uses LLM for parsing
 func (c *Crawler) crawlWithLLM(doc *goquery.Document, url string) (*storage.Venue, []storage.Event, []storage.Exhibition, error) {
+	// Venue name lives in <h1> outside #comblock — extract deterministically so
+	// the LLM can't mis-identify it (e.g. picking up the image's alt text).
+	venueName := CleanText(doc.Find("h1").First().Text())
+	if venueName == "" {
+		c.logger.Printf("[LLM WARN] No venue name (h1) found, falling back to regex")
+		return c.crawlWithRegex(doc, url)
+	}
+
 	// Extract venue HTML block
-	venueHTML, err := doc.Find("#comblock").Html()
+	comblockHTML, err := doc.Find("#comblock").Html()
 	if err != nil {
 		c.logger.Printf("[LLM WARN] Failed to extract venue HTML, falling back to regex: %v", err)
 		return c.crawlWithRegex(doc, url)
 	}
+
+	// Prepend the h1 so the LLM has venue-name context when extracting
+	// description/address/contact from comblock.
+	venueHTML := fmt.Sprintf("<h1>%s</h1>\n%s", venueName, comblockHTML)
 
 	// Parse venue with LLM
 	venue, err := c.llmParser.ParseVenue(venueHTML)
@@ -353,6 +365,12 @@ func (c *Crawler) crawlWithLLM(doc *goquery.Document, url string) (*storage.Venu
 		c.logger.Printf("[LLM WARN] Venue parsing failed, falling back to regex: %v", err)
 		return c.crawlWithRegex(doc, url)
 	}
+
+	// Always override LLM's name/ID with the deterministic h1 value — the LLM
+	// has been observed to substitute image alt text or address-line company
+	// names for the venue name.
+	venue.Name = venueName
+	venue.ID = GenerateID("venue", venueName)
 
 	// Extract events HTML blocks
 	var eventHTMLs []string
