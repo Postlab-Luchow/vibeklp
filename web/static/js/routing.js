@@ -2,15 +2,16 @@
 let routingControl = null;
 let routingMode = false;
 let selectedWaypoints = [];
+let lastRouteInfo = null;
 
 // Initialize Routing
 document.getElementById('route-btn')?.addEventListener('click', toggleRoutingMode);
 
-// Toggle Routing Mode
+// Toggle Routing Mode — closing minimizes (keeps the route on the map)
 function toggleRoutingMode() {
     routingMode = !routingMode;
     const btn = document.getElementById('route-btn');
-    
+
     if (routingMode) {
         btn.classList.add('active');
         btn.style.background = '#FF6B9D';
@@ -20,41 +21,34 @@ function toggleRoutingMode() {
         btn.classList.remove('active');
         btn.style.background = '';
         btn.style.color = '';
-        disableRoutingMode();
+        minimizeRoutingMode();
     }
 }
 
-// Enable Routing Mode
+// Enable Routing Mode — show the dialog and accept new waypoint clicks
 function enableRoutingMode() {
     console.log('Routing mode enabled');
-    selectedWaypoints = [];
-    
-    // Show instruction
+
     showRoutingInstructions();
-    
-    // Add click handler to markers
+    updateRoutingInstructions();
+
+    if (lastRouteInfo) {
+        showRouteInfo(lastRouteInfo.distanceKm, lastRouteInfo.timeMin);
+    }
+
     App.markers.eachLayer(marker => {
         marker.on('click', handleMarkerClickForRouting);
     });
 }
 
-// Disable Routing Mode
-function disableRoutingMode() {
-    console.log('Routing mode disabled');
-    selectedWaypoints = [];
-    
-    // Remove routing control
-    if (routingControl) {
-        App.map.removeControl(routingControl);
-        routingControl = null;
-    }
-    
-    // Remove click handlers
+// Minimize Routing Mode — hide only the dialog; keep the route + LRM box visible
+function minimizeRoutingMode() {
+    console.log('Routing mode minimized');
+
     App.markers.eachLayer(marker => {
         marker.off('click', handleMarkerClickForRouting);
     });
-    
-    // Hide instructions
+
     hideRoutingInstructions();
 }
 
@@ -132,13 +126,14 @@ function calculateRoute() {
     routingControl.on('routesfound', function(e) {
         const routes = e.routes;
         const summary = routes[0].summary;
-        
+
         // Convert distance to km
         const distanceKm = (summary.totalDistance / 1000).toFixed(2);
         const timeMin = Math.round(summary.totalTime / 60);
-        
+
         console.log(`Route calculated: ${distanceKm} km, ${timeMin} min`);
-        
+
+        lastRouteInfo = { distanceKm, timeMin };
         showRouteInfo(distanceKm, timeMin);
     });
 }
@@ -230,6 +225,7 @@ function showRouteInfo(distanceKm, timeMin) {
 // Clear Route
 function clearRoute() {
     selectedWaypoints = [];
+    lastRouteInfo = null;
 
     if (routingControl) {
         App.map.removeControl(routingControl);
