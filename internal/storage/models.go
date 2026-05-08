@@ -31,20 +31,29 @@ type Contact struct {
 	Website string `json:"website,omitempty"`
 }
 
+// VenueCategory is a venue-level facility/offering (Café, WC, Kinder, …).
+// Some categories are only available on specific dates; an empty Dates slice
+// means the category is offered throughout the festival.
+type VenueCategory struct {
+	Name  string   `json:"name"`
+	Dates []string `json:"dates,omitempty"` // YYYY-MM-DD; empty = always available
+}
+
 // Venue represents a venue/location for the festival
 type Venue struct {
-	ID              string      `json:"id"`
-	Name            string      `json:"name"`
-	Description     string      `json:"description,omitempty"`
-	Address         Address     `json:"address"`
-	Coordinates     Coordinates `json:"coordinates"`
-	Contact         Contact     `json:"contact"`
-	Amenities       []string    `json:"amenities,omitempty"`
-	BikeRoute       string      `json:"bikeRoute,omitempty"`
-	EventIDs        []string    `json:"eventIds,omitempty"`
-	ExhibitionIDs   []string    `json:"exhibitionIds,omitempty"`
-	EventCount      int         `json:"eventCount"`
-	ExhibitionCount int         `json:"exhibitionCount"`
+	ID              string          `json:"id"`
+	Name            string          `json:"name"`
+	Description     string          `json:"description,omitempty"`
+	Address         Address         `json:"address"`
+	Coordinates     Coordinates     `json:"coordinates"`
+	Contact         Contact         `json:"contact"`
+	Amenities       []string        `json:"amenities,omitempty"`
+	Categories      []VenueCategory `json:"categories,omitempty"`
+	BikeRoute       string          `json:"bikeRoute,omitempty"`
+	EventIDs        []string        `json:"eventIds,omitempty"`
+	ExhibitionIDs   []string        `json:"exhibitionIds,omitempty"`
+	EventCount      int             `json:"eventCount"`
+	ExhibitionCount int             `json:"exhibitionCount"`
 }
 
 // Validate checks if the venue data is valid

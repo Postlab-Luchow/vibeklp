@@ -228,19 +228,19 @@ function applyFilters() {
     // Build lookup maps for performance
     const eventMap = new Map(App.data.events.map(e => [e.id, e]));
     const exhibitionMap = new Map(App.data.exhibitions.map(ex => [ex.id, ex]));
-    
+
     // Filter venues (search includes venue data + events + exhibitions)
     App.data.filteredVenues = App.data.venues.filter(venue => {
         // Bike route filter
         if (bikeRoute && !venue.bikeRoute) {
             return false;
         }
-        
+
         // Get associated events and exhibitions
         const venueEvents = (venue.eventIds || [])
             .map(id => eventMap.get(id))
             .filter(e => e);
-            
+
         const venueExhibitions = (venue.exhibitionIds || [])
             .map(id => exhibitionMap.get(id))
             .filter(ex => ex);
@@ -251,10 +251,15 @@ function applyFilters() {
             if (!hasEventOnDate) return false;
         }
         
-        // Category filter - venue must have event in this category
+        // Category filter - venue must offer this facility (Café, WC, …).
+        // If a date filter is also active and the category has date restrictions,
+        // the category must be available on that specific date.
         if (category) {
-            const hasEventInCategory = venueEvents.some(e => e.category === category);
-            if (!hasEventInCategory) return false;
+            const match = (venue.categories || []).find(c => c.name === category);
+            if (!match) return false;
+            if (date && match.dates && match.dates.length > 0 && !match.dates.includes(date)) {
+                return false;
+            }
         }
         
         // Search filter - check venue + events + exhibitions
@@ -339,7 +344,7 @@ function createResultItem(venue) {
         const searchLower = search.toLowerCase();
         const eventMap = new Map(App.data.events.map(e => [e.id, e]));
         const exhibitionMap = new Map(App.data.exhibitions.map(ex => [ex.id, ex]));
-        
+
         const venueEvents = (venue.eventIds || [])
             .map(id => eventMap.get(id))
             .filter(e => e);

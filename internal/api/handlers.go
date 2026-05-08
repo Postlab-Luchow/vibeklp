@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -491,35 +492,37 @@ func (h *Handler) GetCalendar(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetCategories returns all categories
+// GetCategories returns the set of venue-level facility categories (Café, WC,
+// Angebote für Kinder, …) along with the number of venues that offer each.
 func (h *Handler) GetCategories(w http.ResponseWriter, r *http.Request) {
-	events, _ := h.storage.LoadEvents()
-	exhibitions, _ := h.storage.LoadExhibitions()
+	venues, _ := h.storage.LoadVenues()
 
 	categoryMap := make(map[string]int)
-
-	for _, e := range events {
-		if e.Category != "" {
-			categoryMap[e.Category]++
+	for _, v := range venues {
+		seen := make(map[string]bool)
+		for _, c := range v.Categories {
+			if c.Name == "" || seen[c.Name] {
+				continue
+			}
+			seen[c.Name] = true
+			categoryMap[c.Name]++
 		}
 	}
 
-	for _, ex := range exhibitions {
-		if ex.Category != "" {
-			categoryMap[ex.Category]++
-		}
+	names := make([]string, 0, len(categoryMap))
+	for name := range categoryMap {
+		names = append(names, name)
 	}
+	sort.Strings(names)
 
-	var categories []storage.Category
 	colors := []string{"#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE"}
-	i := 0
-	for name, count := range categoryMap {
+	categories := make([]storage.Category, 0, len(names))
+	for i, name := range names {
 		categories = append(categories, storage.Category{
 			Name:  name,
-			Count: count,
+			Count: categoryMap[name],
 			Color: colors[i%len(colors)],
 		})
-		i++
 	}
 
 	h.respondJSON(w, http.StatusOK, map[string]interface{}{

@@ -38,6 +38,11 @@ func setupTestStorage(t *testing.T) (*storage.Storage, func()) {
 			EventCount:      2,
 			ExhibitionCount: 1,
 			BikeRoute:       "Route A",
+			Categories: []storage.VenueCategory{
+				{Name: "Café", Dates: []string{"2026-05-29", "2026-05-30"}},
+				{Name: "WC"},
+				{Name: "Angebote für Kinder"},
+			},
 		},
 		{
 			ID:   "venue-2",
@@ -52,6 +57,10 @@ func setupTestStorage(t *testing.T) (*storage.Storage, func()) {
 				Lng: 11.1,
 			},
 			EventCount: 1,
+			Categories: []storage.VenueCategory{
+				{Name: "WC"},
+				{Name: "Restauration"},
+			},
 		},
 	}
 
@@ -460,7 +469,7 @@ func TestGetCategories(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&response)
 
 	categories := response["categories"].([]interface{})
-	if len(categories) < 3 { // At least Music, Theater, Art
+	if len(categories) < 3 { // At least Café, WC, Restauration, Angebote für Kinder
 		t.Errorf("Got %d categories, want at least 3", len(categories))
 	}
 

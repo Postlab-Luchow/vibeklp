@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -338,6 +339,63 @@ func (c *Crawler) CrawlVenueDetails(url string) (*storage.Venue, []storage.Event
 	return venue, events, exhibitions, nil
 }
 
+// parseVenueCategories extracts the venue-level facility icons (Café, WC,
+// Angebote für Kinder, …). The HTML structure is:
+//
+//	<div class="icons">
+//	  <div><img title="Café (Kuchen, Getränke)" …>14.5.|15.5.|…</div>  <- date-restricted
+//	  <img title="WC" …>                                             <- always available
+//	</div>
+//
+// Wrapped icons (img inside a sub-div) carry a list of restriction dates in
+// the trailing text node; bare icons (img directly under .icons) apply on all
+// festival days.
+func parseVenueCategories(doc *goquery.Document) []storage.VenueCategory {
+	var categories []storage.VenueCategory
+	doc.Find(".icons").First().Children().Each(func(i int, s *goquery.Selection) {
+		var img *goquery.Selection
+		var dates []string
+
+		switch goquery.NodeName(s) {
+		case "img":
+			img = s
+		case "div":
+			img = s.Find("img").First()
+			if img.Length() == 0 {
+				return
+			}
+			dates = parseIconDates(s.Text())
+		default:
+			return
+		}
+
+		title, _ := img.Attr("title")
+		title = CleanText(title)
+		if title == "" {
+			return
+		}
+		categories = append(categories, storage.VenueCategory{Name: title, Dates: dates})
+	})
+	return categories
+}
+
+// parseIconDates pulls the "DD.M." / "DD.MM." date stamps from the trailing
+// text of a date-restricted icon entry and returns them as YYYY-MM-DD.
+func parseIconDates(text string) []string {
+	re := regexp.MustCompile(`(\d{1,2})\.(\d{1,2})\.`)
+	matches := re.FindAllStringSubmatch(text, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	dates := make([]string, 0, len(matches))
+	for _, m := range matches {
+		day, _ := strconv.Atoi(m[1])
+		month, _ := strconv.Atoi(m[2])
+		dates = append(dates, fmt.Sprintf("2026-%02d-%02d", month, day))
+	}
+	return dates
+}
+
 // crawlWithLLM uses LLM for parsing
 func (c *Crawler) crawlWithLLM(doc *goquery.Document, url string) (*storage.Venue, []storage.Event, []storage.Exhibition, error) {
 	// Venue name lives in <h1> outside #comblock — extract deterministically so
@@ -371,6 +429,10 @@ func (c *Crawler) crawlWithLLM(doc *goquery.Document, url string) (*storage.Venu
 	// names for the venue name.
 	venue.Name = venueName
 	venue.ID = GenerateID("venue", venueName)
+
+	// Categories are deterministic (icon titles) — parse them in Go regardless
+	// of which extraction backend handled the rest.
+	venue.Categories = parseVenueCategories(doc)
 
 	// Extract events HTML blocks
 	var eventHTMLs []string
@@ -431,8 +493,9 @@ func (c *Crawler) crawlWithRegex(doc *goquery.Document, url string) (*storage.Ve
 	}
 
 	venue := &storage.Venue{
-		ID:   GenerateID("venue", venueName),
-		Name: venueName,
+		ID:         GenerateID("venue", venueName),
+		Name:       venueName,
+		Categories: parseVenueCategories(doc),
 	}
 
 	// Extract description (usually the first paragraph or subtitle)
