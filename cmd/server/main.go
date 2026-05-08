@@ -40,11 +40,16 @@ func main() {
 	router.Use(api.LoggingMiddleware)
 	router.Use(api.CORSMiddleware)
 
-	// Serve static files
+	// Serve static files. Set Cache-Control: no-cache so browsers must
+	// revalidate with If-Modified-Since on every request — content is still
+	// served from the local disk cache when unchanged (304), but fresh JS/CSS
+	// is picked up immediately after a redeploy without needing a hard reload.
 	staticPath := filepath.Join(*staticDir)
-	router.PathPrefix("/static/").Handler(
-		http.StripPrefix("/static/", http.FileServer(http.Dir(staticPath))),
-	)
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.Dir(staticPath)))
+	router.PathPrefix("/static/").Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+		staticHandler.ServeHTTP(w, r)
+	}))
 
 	// Serve index.html for root
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
