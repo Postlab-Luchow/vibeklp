@@ -326,6 +326,83 @@ body {
     transform: scale(1.1);
 }
 
+/* Routing Instructions Panel */
+#routing-instructions {
+    position: relative;
+}
+
+.routing-close-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bg-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.routing-close-btn:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Leaflet Routing Machine — themed panel at bottom of map */
+.leaflet-routing-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    max-width: 320px;
+    max-height: 40vh;
+    overflow-y: auto;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.leaflet-routing-container h2,
+.leaflet-routing-container h3 {
+    color: var(--primary-color);
+}
+
+.leaflet-routing-collapse-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    transition: all 0.2s;
+}
+
+.leaflet-routing-collapse-btn:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.leaflet-routing-container-hide .leaflet-routing-collapse-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+}
+
+.leaflet-routing-remove-waypoint {
+    color: var(--secondary-color);
+}
+
 /* Custom Leaflet Popup */
 .leaflet-popup-content-wrapper {
     border-radius: 12px;

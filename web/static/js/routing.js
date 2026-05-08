@@ -118,10 +118,11 @@ function calculateRoute() {
                     iconAnchor: [15, 40]
                 })
             });
-            
+
             marker.bindPopup(selectedWaypoints[i].name);
             return marker;
         },
+        position: 'bottomleft',
         show: true,
         collapsible: true,
         routeWhileDragging: false
@@ -159,7 +160,10 @@ function showRoutingInstructions() {
     `;
     
     div.innerHTML = `
-        <h4 style="margin: 0 0 0.5rem 0; color: #FF6B9D;">
+        <button class="routing-close-btn" onclick="toggleRoutingMode()" title="Routenplanung schließen" aria-label="Schließen">
+            <i class="fas fa-times"></i>
+        </button>
+        <h4 style="margin: 0 0 0.5rem 0; color: #FF6B9D; padding-right: 1.5rem;">
             <i class="fas fa-route"></i> Routenplanung
         </h4>
         <p style="margin: 0; font-size: 0.9rem;">
@@ -199,7 +203,14 @@ function showRouteInfo(distanceKm, timeMin) {
     const div = document.getElementById('routing-instructions');
     if (!div) return;
     
+    // Remove old info if exists
+    const oldInfo = div.querySelector('.route-info');
+    if (oldInfo) {
+        oldInfo.remove();
+    }
+
     const infoDiv = document.createElement('div');
+    infoDiv.className = 'route-info';
     infoDiv.style.cssText = `
         margin-top: 0.5rem;
         padding: 0.5rem;
@@ -207,32 +218,32 @@ function showRouteInfo(distanceKm, timeMin) {
         border-radius: 6px;
         font-size: 0.85rem;
     `;
-    
+
     infoDiv.innerHTML = `
         <div><i class="fas fa-bicycle"></i> <strong>${distanceKm} km</strong></div>
         <div><i class="fas fa-clock"></i> ca. ${timeMin} Minuten</div>
     `;
-    
-    // Remove old info if exists
-    const oldInfo = div.querySelector('[style*="e7f5ff"]');
-    if (oldInfo) {
-        oldInfo.remove();
-    }
-    
+
     div.appendChild(infoDiv);
 }
 
 // Clear Route
 function clearRoute() {
     selectedWaypoints = [];
-    
+
     if (routingControl) {
         App.map.removeControl(routingControl);
         routingControl = null;
     }
-    
+
+    const div = document.getElementById('routing-instructions');
+    if (div) {
+        const oldInfo = div.querySelector('.route-info');
+        if (oldInfo) oldInfo.remove();
+    }
+
     updateRoutingInstructions();
-    
+
     console.log('Route cleared');
 }
 
