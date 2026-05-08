@@ -20,7 +20,7 @@ func main() {
 
 	// LLM flags
 	useLLM := flag.Bool("use-llm", false, "Use LLM for parsing HTML (requires OPENROUTER_API_KEY env var)")
-	openRouterModel := flag.String("openrouter-model", "openai/gpt-4o-mini", "OpenRouter model to use")
+	openRouterModel := flag.String("openrouter-model", "google/gemini-3-flash-preview", "OpenRouter model to use")
 	llmCacheDir := flag.String("llm-cache-dir", "./.llm_cache", "Directory for LLM response cache")
 	llmCacheTTL := flag.Duration("llm-cache-ttl", 24*time.Hour, "Cache TTL for LLM responses")
 	llmBatchSize := flag.Int("llm-batch-size", 5, "Number of items to process per LLM API call")
