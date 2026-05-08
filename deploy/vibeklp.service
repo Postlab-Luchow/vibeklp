@@ -1,0 +1,25 @@
+[Unit]
+Description=Kulturelle Landpartie web server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vibeklp
+Group=vibeklp
+WorkingDirectory=/opt/vibeklp
+ExecStart=/opt/vibeklp/server
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
