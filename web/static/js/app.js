@@ -308,6 +308,9 @@ function applyFilters() {
     // Update UI
     updateResults();
     updateMap();
+    if (App.state.currentView === 'calendar') {
+        loadCalendar();
+    }
 }
 
 // Update Results List - Show only venues
