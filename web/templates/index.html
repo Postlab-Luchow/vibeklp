@@ -45,8 +45,15 @@
 
     <!-- Main Content -->
     <main class="main">
+        <!-- Mobile bottom-sheet backdrop -->
+        <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-close" id="sidebar-close" aria-label="Filter schließen">
+                <i class="fas fa-times"></i>
+            </button>
+
             <!-- Search -->
             <div class="search-box">
                 <input type="text" id="search-input" placeholder="Suche nach Orten, Events..." />
@@ -122,6 +129,11 @@
                 <div id="favorites-list"></div>
             </div>
         </div>
+
+        <!-- Mobile floating Filter button -->
+        <button id="mobile-filter-toggle" class="mobile-filter-toggle" aria-label="Filter öffnen">
+            <i class="fas fa-sliders-h"></i> Filter
+        </button>
     </main>
 
     <!-- Detail Modal -->

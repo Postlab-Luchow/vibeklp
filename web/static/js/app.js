@@ -37,14 +37,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Load data
         await loadData();
-        
+
         // Initialize components
         initNavigation();
         initMap();
         initFilters();
         initFavorites();
         initSearch();
-        
+        initMobileSidebar();
+
         // Apply initial filters
         applyFilters();
         
@@ -181,6 +182,25 @@ function populateFilters() {
     });
 }
 
+// Mobile bottom-sheet wiring (no-op on desktop where the elements are display:none)
+function initMobileSidebar() {
+    const toggle = document.getElementById('mobile-filter-toggle');
+    const closeBtn = document.getElementById('sidebar-close');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    toggle?.addEventListener('click', openMobileSidebar);
+    closeBtn?.addEventListener('click', closeMobileSidebar);
+    backdrop?.addEventListener('click', closeMobileSidebar);
+}
+
+function openMobileSidebar() {
+    document.body.classList.add('sidebar-open');
+}
+
+function closeMobileSidebar() {
+    document.body.classList.remove('sidebar-open');
+}
+
 // Initialize Navigation
 function initNavigation() {
     const navButtons = document.querySelectorAll('.nav-btn');
@@ -195,6 +215,8 @@ function initNavigation() {
 
 // Switch View
 function switchView(view) {
+    closeMobileSidebar();
+
     // Update state
     App.state.currentView = view;
     
@@ -562,16 +584,19 @@ function _renderTopOfModalStack() {
 
 // Public entry points (always reset the modal stack)
 function showVenueDetails(venueId) {
+    closeMobileSidebar();
     App.state.modalStack = [{ type: 'venue', id: venueId }];
     return _renderVenueModal(venueId);
 }
 
 function showEventDetails(eventId) {
+    closeMobileSidebar();
     App.state.modalStack = [{ type: 'event', id: eventId }];
     return _renderEventModal(eventId);
 }
 
 function showExhibitionDetails(exhibitionId) {
+    closeMobileSidebar();
     App.state.modalStack = [{ type: 'exhibition', id: exhibitionId }];
     return _renderExhibitionModal(exhibitionId);
 }
