@@ -45,3 +45,5 @@ Thumbs.db
 .or-key
 
 bin/*
+/build/
+/deploy/deploy.env
