@@ -225,9 +225,21 @@ function applyFilters() {
     const { search, date, category, bikeRoute } = App.state.filters;
     const searchLower = search ? search.toLowerCase() : '';
     
-    // Build lookup maps for performance
-    const eventMap = new Map(App.data.events.map(e => [e.id, e]));
-    const exhibitionMap = new Map(App.data.exhibitions.map(ex => [ex.id, ex]));
+    // Build venue → events / exhibitions lookups from the venueId on each
+    // child item. (The crawler does not populate venue.eventIds /
+    // venue.exhibitionIds, so we cannot rely on those.)
+    const eventsByVenue = new Map();
+    for (const e of App.data.events) {
+        if (!e.venueId) continue;
+        const list = eventsByVenue.get(e.venueId);
+        if (list) list.push(e); else eventsByVenue.set(e.venueId, [e]);
+    }
+    const exhibitionsByVenue = new Map();
+    for (const ex of App.data.exhibitions) {
+        if (!ex.venueId) continue;
+        const list = exhibitionsByVenue.get(ex.venueId);
+        if (list) list.push(ex); else exhibitionsByVenue.set(ex.venueId, [ex]);
+    }
 
     // Filter venues (search includes venue data + events + exhibitions)
     App.data.filteredVenues = App.data.venues.filter(venue => {
@@ -236,14 +248,8 @@ function applyFilters() {
             return false;
         }
 
-        // Get associated events and exhibitions
-        const venueEvents = (venue.eventIds || [])
-            .map(id => eventMap.get(id))
-            .filter(e => e);
-
-        const venueExhibitions = (venue.exhibitionIds || [])
-            .map(id => exhibitionMap.get(id))
-            .filter(ex => ex);
+        const venueEvents = eventsByVenue.get(venue.id) || [];
+        const venueExhibitions = exhibitionsByVenue.get(venue.id) || [];
         
         // Date filter - venue must have event on this date
         if (date) {
@@ -342,15 +348,8 @@ function createResultItem(venue) {
     
     if (search && search.length >= 2) {
         const searchLower = search.toLowerCase();
-        const eventMap = new Map(App.data.events.map(e => [e.id, e]));
-        const exhibitionMap = new Map(App.data.exhibitions.map(ex => [ex.id, ex]));
-
-        const venueEvents = (venue.eventIds || [])
-            .map(id => eventMap.get(id))
-            .filter(e => e);
-        const venueExhibitions = (venue.exhibitionIds || [])
-            .map(id => exhibitionMap.get(id))
-            .filter(ex => ex);
+        const venueEvents = App.data.events.filter(e => e.venueId === venue.id);
+        const venueExhibitions = App.data.exhibitions.filter(ex => ex.venueId === venue.id);
         
         // Count matching events
         const matchingEvents = venueEvents.filter(e => 
