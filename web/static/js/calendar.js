@@ -102,7 +102,7 @@ function createCalendarDay(day) {
 
     div.innerHTML = `
         <h3>
-            <span>${day.dayOfWeek}, ${formatDate(day.date)}</span>
+            <span>${formatDate(day.date)}</span>
             <span class="badge">${day.eventCount} Events</span>
         </h3>
         <div class="event-grid" id="events-${day.date}"></div>
