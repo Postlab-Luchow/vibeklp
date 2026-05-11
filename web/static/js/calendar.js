@@ -131,7 +131,7 @@ function createEventCard(event) {
 
     div.innerHTML = `
         <div class="time">${event.startTime || 'Ganztägig'}</div>
-        <h4>${event.title}</h4>
+        <h4>${event.title} ${typeof sourceBadge === 'function' ? sourceBadge(event.source) : ''}</h4>
         <div class="venue">
             <i class="fas fa-map-marker-alt"></i> ${event.venueName || 'Ort nicht angegeben'}
         </div>

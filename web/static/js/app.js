@@ -29,6 +29,19 @@ const App = {
 // API Base URL
 const API_BASE = '/api';
 
+// Source code → human label. The main KLP source is the implicit default,
+// so we hide its badge to keep the UI uncluttered.
+const SOURCE_LABELS = {
+    wendlandpartie: 'WendlandPartie',
+    landgang: 'Landgang'
+};
+
+function sourceBadge(source) {
+    const label = SOURCE_LABELS[source];
+    if (!label) return '';
+    return `<span class="source-badge source-${source}">${label}</span>`;
+}
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🎨 Kulturelle Landpartie App initializing...');
@@ -438,7 +451,7 @@ function createResultItem(venue) {
     }
     
     div.innerHTML = `
-        <h4><i class="fas fa-map-marker-alt"></i> ${venue.name}</h4>
+        <h4><i class="fas fa-map-marker-alt"></i> ${venue.name} ${sourceBadge(venue.source)}</h4>
         <p>${venue.address.city}</p>
         <div class="meta">
             <span><i class="fas fa-calendar"></i> ${venue.eventCount || 0} Events</span>
@@ -507,7 +520,7 @@ async function _renderVenueModal(venueId) {
             : '';
 
         content.innerHTML = `
-            <h2>${venue.name}</h2>
+            <h2>${venue.name} ${sourceBadge(venue.source)}</h2>
             <p>${venue.description || ''}</p>
 
             <h3><i class="fas fa-map-marker-alt"></i> Adresse</h3>
@@ -580,7 +593,7 @@ async function _renderEventModal(eventId) {
         const content = document.getElementById('detail-content');
 
         content.innerHTML = `
-            <h2>${event.title}</h2>
+            <h2>${event.title} ${sourceBadge(event.source)}</h2>
             <p>${event.description || ''}</p>
 
             <h3><i class="fas fa-calendar"></i> Wann</h3>

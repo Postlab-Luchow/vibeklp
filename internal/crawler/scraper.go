@@ -664,6 +664,10 @@ func (c *Crawler) GeocodeVenues(venues []storage.Venue) error {
 	c.logger.Println("[INFO] Starting geocoding...")
 
 	for i := range venues {
+		// Already geocoded (e.g. by a source that supplies lat/lng directly).
+		if venues[i].Coordinates.Lat != 0 && venues[i].Coordinates.Lng != 0 {
+			continue
+		}
 		// For Google Maps, we can attempt geocoding even without postal code
 		// For Nominatim, postal code is required
 		if venues[i].Address.PostalCode == "" && c.geocoder.provider == "nominatim" {

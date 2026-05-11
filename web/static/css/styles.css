@@ -553,6 +553,30 @@ body {
     color: var(--accent-color);
 }
 
+.source-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+    background: #ECEFF1;
+    color: #455A64;
+}
+
+.source-badge.source-wendlandpartie {
+    background: #E8F0FE;
+    color: #1A56B0;
+}
+
+.source-badge.source-landgang {
+    background: #FFF3E0;
+    color: #B8651A;
+}
+
 /* Favorites */
 #favorites-list {
     padding: 2rem;

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -39,6 +40,9 @@ func main() {
 	// Categorize mode - assign event categories to existing events.json/exhibitions.json
 	categorize := flag.Bool("categorize", false, "Assign categories to existing events and exhibitions via LLM, then exit (no crawl)")
 	categorizeBatch := flag.Int("categorize-batch-size", 25, "Items per LLM call in --categorize mode")
+
+	// Source selection
+	source := flag.String("source", "klp", "Source(s) to crawl: klp, wendlandpartie, landgang, all")
 
 	flag.Parse()
 
@@ -164,48 +168,73 @@ func main() {
 		return
 	}
 
-	// Handle different modes
-	if *parseCached {
-		// Mode: Parse cached HTML with LLM (no fetching)
-		if !*useLLM {
-			log.Fatal("--parse-cached requires --use-llm flag")
-		}
-		if !c.HasCrawlCache() {
-			log.Fatal("--parse-cached requires crawl cache. Use --use-crawl-cache flag")
-		}
+	// Determine which sources to crawl. Each source produces its own
+	// (venues, events, exhibitions) slice; results are concatenated below.
+	sourcesToCrawl, err := parseSourceFlag(*source)
+	if err != nil {
+		log.Fatal(err)
+	}
+	logger.Printf("Sources: %v", sourcesToCrawl)
 
-		logger.Println("\n[MODE] Parsing cached HTML with LLM (no fetching)...")
-		venues, events, exhibitions, err = c.ParseCachedVenues()
-		if err != nil {
-			log.Fatalf("Failed to parse cached data: %v", err)
-		}
-	} else if *fetchOnly {
-		// Mode: Only fetch and cache HTML, skip parsing
-		logger.Println("\n[MODE] Fetch-only mode: caching HTML without parsing...")
-		if !c.HasCrawlCache() {
-			log.Fatal("--fetch-only requires crawl cache. Use --use-crawl-cache flag")
-		}
-
-		// Just run CrawlAll but don't save results
-		_, _, _, err = c.CrawlAll()
-		if err != nil {
-			log.Fatalf("Failed to fetch data: %v", err)
-		}
-
-		logger.Println("\n=== Fetch Complete ===")
-		logger.Println("HTML cached successfully. Run with --parse-cached to parse with LLM.")
-		return
-	} else {
-		// Mode: Normal crawl (fetch + parse)
-		logger.Println("\n[STEP 1/2] Crawling all venues, events, and exhibitions...")
-		venues, events, exhibitions, err = c.CrawlAll()
-		if err != nil {
-			log.Fatalf("Failed to crawl data: %v", err)
+	// Source-specific modes (parseCached / fetchOnly) only make sense for KLP.
+	if *parseCached || *fetchOnly {
+		if !sliceContains(sourcesToCrawl, storage.SourceKLP) || len(sourcesToCrawl) != 1 {
+			log.Fatal("--parse-cached and --fetch-only only work with --source klp")
 		}
 	}
 
-	logger.Printf("✓ Crawled %d venues, %d events, %d exhibitions",
-		len(venues), len(events), len(exhibitions))
+	for _, src := range sourcesToCrawl {
+		var sv []storage.Venue
+		var se []storage.Event
+		var sx []storage.Exhibition
+		switch src {
+		case storage.SourceKLP:
+			if *parseCached {
+				if !*useLLM {
+					log.Fatal("--parse-cached requires --use-llm flag")
+				}
+				if !c.HasCrawlCache() {
+					log.Fatal("--parse-cached requires crawl cache. Use --use-crawl-cache flag")
+				}
+				logger.Println("\n[KLP] Parsing cached HTML with LLM (no fetching)...")
+				sv, se, sx, err = c.ParseCachedVenues()
+			} else if *fetchOnly {
+				logger.Println("\n[KLP] Fetch-only mode: caching HTML without parsing...")
+				if !c.HasCrawlCache() {
+					log.Fatal("--fetch-only requires crawl cache. Use --use-crawl-cache flag")
+				}
+				_, _, _, err = c.CrawlAll()
+				if err != nil {
+					log.Fatalf("Failed to fetch KLP data: %v", err)
+				}
+				logger.Println("\n=== Fetch Complete ===")
+				logger.Println("HTML cached successfully. Run with --parse-cached to parse with LLM.")
+				return
+			} else {
+				logger.Println("\n[KLP] Crawling kulturelle-landpartie.de ...")
+				sv, se, sx, err = c.CrawlAll()
+			}
+		case storage.SourceWendlandpartie:
+			logger.Println("\n[wendlandpartie] Crawling wendlandpartie.de via Tribe Events REST API ...")
+			sv, se, sx, err = crawler.CrawlWendlandpartie(logger)
+		case storage.SourceLandgang:
+			logger.Println("\n[landgang] Crawling landgang-wendland.de venue pages ...")
+			sv, se, sx, err = crawler.CrawlLandgang(c)
+		default:
+			log.Fatalf("Unknown source: %s", src)
+		}
+		if err != nil {
+			log.Fatalf("Failed to crawl %s: %v", src, err)
+		}
+		tagSource(src, sv, se, sx)
+		venues = append(venues, sv...)
+		events = append(events, se...)
+		exhibitions = append(exhibitions, sx...)
+		logger.Printf("[%s] +%d venues, +%d events, +%d exhibitions", src, len(sv), len(se), len(sx))
+	}
+
+	logger.Printf("✓ Crawled %d venues, %d events, %d exhibitions (across %d source(s))",
+		len(venues), len(events), len(exhibitions), len(sourcesToCrawl))
 
 	// Geocode addresses
 	if !*skipGeo {
@@ -228,29 +257,41 @@ func main() {
 		logger.Println("\n[STEP 2/2] Skipping geocoding (--skip-geocoding flag set)")
 	}
 
-	// Save data
-	logger.Println("\n[SAVING] Writing data to JSON files...")
+	// Merge with existing data on disk: drop any prior records belonging to
+	// the source(s) we just crawled, then append the fresh records. This lets
+	// `-source wendlandpartie` refresh only those records without touching
+	// klp/landgang data, and vice versa.
+	logger.Println("\n[SAVING] Merging into existing JSON files...")
+	mergedVenues, mergedEvents, mergedExhibitions, err := mergeWithExisting(
+		store, sourcesToCrawl, venues, events, exhibitions,
+	)
+	if err != nil {
+		log.Fatalf("Failed to merge with existing data: %v", err)
+	}
 
-	if err := store.SaveVenues(venues); err != nil {
+	if err := store.SaveVenues(mergedVenues); err != nil {
 		log.Fatalf("Failed to save venues: %v", err)
 	}
-	logger.Printf("✓ Saved venues to %s/venues.json", *outputDir)
+	logger.Printf("✓ Saved %d venues to %s/venues.json", len(mergedVenues), *outputDir)
 
-	if err := store.SaveEvents(events); err != nil {
+	if err := store.SaveEvents(mergedEvents); err != nil {
 		log.Fatalf("Failed to save events: %v", err)
 	}
-	logger.Printf("✓ Saved events to %s/events.json", *outputDir)
+	logger.Printf("✓ Saved %d events to %s/events.json", len(mergedEvents), *outputDir)
 
-	if err := store.SaveExhibitions(exhibitions); err != nil {
+	if err := store.SaveExhibitions(mergedExhibitions); err != nil {
 		log.Fatalf("Failed to save exhibitions: %v", err)
 	}
-	logger.Printf("✓ Saved exhibitions to %s/exhibitions.json", *outputDir)
+	logger.Printf("✓ Saved %d exhibitions to %s/exhibitions.json", len(mergedExhibitions), *outputDir)
 
 	// Summary
 	logger.Println("\n=== Crawl Complete ===")
-	logger.Printf("Venues:      %d", len(venues))
-	logger.Printf("Events:      %d", len(events))
-	logger.Printf("Exhibitions: %d", len(exhibitions))
+	logger.Printf("This run added/updated for sources %v:", sourcesToCrawl)
+	logger.Printf("  Venues:      %d", len(venues))
+	logger.Printf("  Events:      %d", len(events))
+	logger.Printf("  Exhibitions: %d", len(exhibitions))
+	logger.Printf("On disk total: %d venues, %d events, %d exhibitions",
+		len(mergedVenues), len(mergedEvents), len(mergedExhibitions))
 
 	// Show LLM stats if used
 	if *useLLM && c.GetLLMParser() != nil {
@@ -262,4 +303,113 @@ func main() {
 
 	logger.Println("\nData saved successfully!")
 	logger.Println("Run the server with: go run cmd/server/main.go")
+}
+
+// parseSourceFlag resolves --source into a list of source identifiers.
+func parseSourceFlag(flag string) ([]string, error) {
+	switch flag {
+	case "klp":
+		return []string{storage.SourceKLP}, nil
+	case "wendlandpartie":
+		return []string{storage.SourceWendlandpartie}, nil
+	case "landgang":
+		return []string{storage.SourceLandgang}, nil
+	case "all":
+		return []string{storage.SourceKLP, storage.SourceWendlandpartie, storage.SourceLandgang}, nil
+	default:
+		return nil, fmt.Errorf("unknown --source %q (want one of: klp, wendlandpartie, landgang, all)", flag)
+	}
+}
+
+func sliceContains(haystack []string, needle string) bool {
+	for _, s := range haystack {
+		if s == needle {
+			return true
+		}
+	}
+	return false
+}
+
+// tagSource sets the Source field on items whose source is not already set.
+// Crawlers can set Source themselves (e.g. CrawlWendlandpartie does); this is
+// a safety net mostly for the legacy KLP crawler which knows nothing of sources.
+func tagSource(src string, venues []storage.Venue, events []storage.Event, exhibitions []storage.Exhibition) {
+	for i := range venues {
+		if venues[i].Source == "" {
+			venues[i].Source = src
+		}
+	}
+	for i := range events {
+		if events[i].Source == "" {
+			events[i].Source = src
+		}
+	}
+	for i := range exhibitions {
+		if exhibitions[i].Source == "" {
+			exhibitions[i].Source = src
+		}
+	}
+}
+
+// mergeWithExisting loads the current JSON files, drops everything tagged with
+// a freshly-crawled source, and appends the new records. Records missing a
+// Source field count as legacy KLP data so re-running `-source klp` cleans them
+// up automatically.
+func mergeWithExisting(
+	store *storage.Storage,
+	freshSources []string,
+	venues []storage.Venue,
+	events []storage.Event,
+	exhibitions []storage.Exhibition,
+) ([]storage.Venue, []storage.Event, []storage.Exhibition, error) {
+	freshSet := make(map[string]bool, len(freshSources))
+	for _, s := range freshSources {
+		freshSet[s] = true
+	}
+	isFresh := func(s string) bool {
+		if s == "" {
+			s = storage.SourceKLP
+		}
+		return freshSet[s]
+	}
+
+	existingV, err := store.LoadVenues()
+	if err != nil {
+		// First run: file doesn't exist yet — just use the fresh data.
+		existingV = nil
+	}
+	existingE, err := store.LoadEvents()
+	if err != nil {
+		existingE = nil
+	}
+	existingX, err := store.LoadExhibitions()
+	if err != nil {
+		existingX = nil
+	}
+
+	outV := make([]storage.Venue, 0, len(existingV)+len(venues))
+	for _, v := range existingV {
+		if !isFresh(v.Source) {
+			outV = append(outV, v)
+		}
+	}
+	outV = append(outV, venues...)
+
+	outE := make([]storage.Event, 0, len(existingE)+len(events))
+	for _, e := range existingE {
+		if !isFresh(e.Source) {
+			outE = append(outE, e)
+		}
+	}
+	outE = append(outE, events...)
+
+	outX := make([]storage.Exhibition, 0, len(existingX)+len(exhibitions))
+	for _, x := range existingX {
+		if !isFresh(x.Source) {
+			outX = append(outX, x)
+		}
+	}
+	outX = append(outX, exhibitions...)
+
+	return outV, outE, outX, nil
 }

@@ -40,6 +40,13 @@ type VenueCategory struct {
 	Dates []string `json:"dates,omitempty"` // YYYY-MM-DD; empty = always available
 }
 
+// Source identifies which website a record originated from.
+const (
+	SourceKLP            = "klp"            // kulturelle-landpartie.de
+	SourceWendlandpartie = "wendlandpartie" // wendlandpartie.de
+	SourceLandgang       = "landgang"       // landgang-wendland.de
+)
+
 // Venue represents a venue/location for the festival
 type Venue struct {
 	ID              string          `json:"id"`
@@ -51,6 +58,7 @@ type Venue struct {
 	Amenities       []string        `json:"amenities,omitempty"`
 	Categories      []VenueCategory `json:"categories,omitempty"`
 	BikeRoute       string          `json:"bikeRoute,omitempty"`
+	Source          string          `json:"source,omitempty"`
 	EventIDs        []string        `json:"eventIds,omitempty"`
 	ExhibitionIDs   []string        `json:"exhibitionIds,omitempty"`
 	EventCount      int             `json:"eventCount"`
@@ -94,6 +102,7 @@ type Event struct {
 	Category    string `json:"category,omitempty"` // one of EventCategories (or empty if uncategorized)
 	Admission   string `json:"admission,omitempty"`
 	ImageURL    string `json:"imageUrl,omitempty"`
+	Source      string `json:"source,omitempty"`
 }
 
 // Validate checks if the event data is valid
@@ -125,6 +134,7 @@ type Exhibition struct {
 	Artist      string `json:"artist,omitempty"`
 	Category    string `json:"category,omitempty"`
 	ImageURL    string `json:"imageUrl,omitempty"`
+	Source      string `json:"source,omitempty"`
 }
 
 // Validate checks if the exhibition data is valid
