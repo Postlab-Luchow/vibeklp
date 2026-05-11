@@ -425,12 +425,44 @@ async function _renderVenueModal(venueId) {
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
 
-        // Respect the active date filter so the modal only shows events on that day
+        // Respect the active date + search filters so the modal only shows matching events.
         const dateFilter = App.state.filters.date;
-        const venueEvents = (venue.events || []).filter(e => !dateFilter || e.date === dateFilter);
+        const searchFilter = (App.state.filters.search || '').toLowerCase();
+        const allVenueEvents = venue.events || [];
+        const venueEvents = allVenueEvents.filter(e => {
+            if (dateFilter && e.date !== dateFilter) return false;
+            if (searchFilter) {
+                const hay =
+                    e.title.toLowerCase() +
+                    ' ' + (e.description ? e.description.toLowerCase() : '') +
+                    ' ' + (e.category ? e.category.toLowerCase() : '');
+                if (!hay.includes(searchFilter)) return false;
+            }
+            return true;
+        });
+        const isEventsFiltered = (dateFilter || searchFilter) && venueEvents.length !== allVenueEvents.length;
         const eventsHeading = dateFilter
             ? `Veranstaltungen am ${formatDate(dateFilter)} (${venueEvents.length})`
             : `Veranstaltungen (${venueEvents.length})`;
+        const eventsFilterHint = isEventsFiltered
+            ? `<p class="filter-hint"><i class="fas fa-filter"></i> ${venueEvents.length} von ${allVenueEvents.length} Veranstaltungen entsprechen den aktiven Filtern.</p>`
+            : '';
+
+        // Exhibitions have no date — only the search filter applies.
+        const allVenueExhibitions = venue.exhibitions || [];
+        const venueExhibitions = allVenueExhibitions.filter(ex => {
+            if (!searchFilter) return true;
+            const hay =
+                ex.title.toLowerCase() +
+                ' ' + (ex.description ? ex.description.toLowerCase() : '') +
+                ' ' + (ex.artist ? ex.artist.toLowerCase() : '') +
+                ' ' + (ex.category ? ex.category.toLowerCase() : '');
+            return hay.includes(searchFilter);
+        });
+        const isExhibitionsFiltered = searchFilter && venueExhibitions.length !== allVenueExhibitions.length;
+        const exhibitionsFilterHint = isExhibitionsFiltered
+            ? `<p class="filter-hint"><i class="fas fa-filter"></i> ${venueExhibitions.length} von ${allVenueExhibitions.length} Ausstellungen entsprechen der Suche.</p>`
+            : '';
 
         content.innerHTML = `
             <h2>${venue.name}</h2>
@@ -445,6 +477,7 @@ async function _renderVenueModal(venueId) {
 
             ${venueEvents.length > 0 ? `
                 <h3><i class="fas fa-calendar"></i> ${eventsHeading}</h3>
+                ${eventsFilterHint}
                 <div class="event-grid">
                     ${venueEvents.map(e => `
                         <div class="event-card" onclick="pushModal('event', '${e.id}')">
@@ -454,12 +487,16 @@ async function _renderVenueModal(venueId) {
                         </div>
                     `).join('')}
                 </div>
-            ` : ''}
+            ` : (allVenueEvents.length > 0 ? `
+                <h3><i class="fas fa-calendar"></i> Veranstaltungen (0)</h3>
+                <p class="filter-hint"><i class="fas fa-filter"></i> Keine der ${allVenueEvents.length} Veranstaltungen entspricht den aktiven Filtern.</p>
+            ` : '')}
 
-            ${venue.exhibitions && venue.exhibitions.length > 0 ? `
-                <h3><i class="fas fa-palette"></i> Ausstellungen (${venue.exhibitions.length})</h3>
+            ${venueExhibitions.length > 0 ? `
+                <h3><i class="fas fa-palette"></i> Ausstellungen (${venueExhibitions.length})</h3>
+                ${exhibitionsFilterHint}
                 <div class="event-grid">
-                    ${venue.exhibitions.map(ex => `
+                    ${venueExhibitions.map(ex => `
                         <div class="event-card">
                             <h4>${ex.title}</h4>
                             ${ex.artist ? `<p>${ex.artist}</p>` : ''}
@@ -467,7 +504,10 @@ async function _renderVenueModal(venueId) {
                         </div>
                     `).join('')}
                 </div>
-            ` : ''}
+            ` : (allVenueExhibitions.length > 0 ? `
+                <h3><i class="fas fa-palette"></i> Ausstellungen (0)</h3>
+                <p class="filter-hint"><i class="fas fa-filter"></i> Keine der ${allVenueExhibitions.length} Ausstellungen entspricht der Suche.</p>
+            ` : '')}
 
             <div class="popup-actions">
                 <button class="btn-primary" onclick="centerMapOnVenue('${venue.id}')">

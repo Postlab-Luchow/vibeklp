@@ -538,6 +538,21 @@ body {
     margin-top: 0.5rem;
 }
 
+.filter-hint {
+    background: #FFF8E1;
+    border-left: 3px solid var(--accent-color);
+    color: #5D4037;
+    padding: 0.5rem 0.75rem;
+    margin: 0.5rem 0 1rem;
+    font-size: 0.9rem;
+    border-radius: 4px;
+}
+
+.filter-hint i {
+    margin-right: 0.4rem;
+    color: var(--accent-color);
+}
+
 /* Favorites */
 #favorites-list {
     padding: 2rem;
