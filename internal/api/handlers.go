@@ -530,6 +530,40 @@ func (h *Handler) GetCategories(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetEventCategories returns the locked event-category taxonomy with counts
+// derived from the loaded events + exhibitions. The order matches
+// storage.EventCategories so the UI can keep stable button order.
+func (h *Handler) GetEventCategories(w http.ResponseWriter, r *http.Request) {
+	events, _ := h.storage.LoadEvents()
+	exhibitions, _ := h.storage.LoadExhibitions()
+
+	counts := make(map[string]int, len(storage.EventCategories))
+	for _, e := range events {
+		if e.Category != "" {
+			counts[e.Category]++
+		}
+	}
+	for _, ex := range exhibitions {
+		if ex.Category != "" {
+			counts[ex.Category]++
+		}
+	}
+
+	colors := []string{"#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE", "#E08E45", "#999999"}
+	out := make([]storage.Category, 0, len(storage.EventCategories))
+	for i, name := range storage.EventCategories {
+		out = append(out, storage.Category{
+			Name:  name,
+			Count: counts[name],
+			Color: colors[i%len(colors)],
+		})
+	}
+
+	h.respondJSON(w, http.StatusOK, map[string]interface{}{
+		"categories": out,
+	})
+}
+
 // GetStats returns statistics
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	venues, _ := h.storage.LoadVenues()

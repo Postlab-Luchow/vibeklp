@@ -8,9 +8,15 @@ function initFilters() {
         applyFilters();
     });
     
-    // Category filter
+    // Venue-amenity filter
     document.getElementById('category-filter').addEventListener('change', (e) => {
         App.state.filters.category = e.target.value;
+        applyFilters();
+    });
+
+    // Event-category filter
+    document.getElementById('event-category-filter')?.addEventListener('change', (e) => {
+        App.state.filters.eventCategory = e.target.value;
         applyFilters();
     });
     
@@ -65,15 +71,18 @@ function resetFilters() {
         search: '',
         date: '',
         category: '',
+        eventCategory: '',
         bikeRoute: false
     };
-    
+
     // Reset UI
     document.getElementById('search-input').value = '';
     document.getElementById('date-filter').value = '';
     document.getElementById('category-filter').value = '';
+    const ecFilter = document.getElementById('event-category-filter');
+    if (ecFilter) ecFilter.value = '';
     document.getElementById('bike-route-filter').checked = false;
-    
+
     // Apply filters
     applyFilters();
 }

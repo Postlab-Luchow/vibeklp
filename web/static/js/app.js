@@ -5,6 +5,7 @@ const App = {
         events: [],
         exhibitions: [],
         categories: [],
+        eventCategories: [],
         filteredVenues: [],
         filteredEvents: []
     },
@@ -17,6 +18,7 @@ const App = {
             search: '',
             date: '',
             category: '',
+            eventCategory: '',
             bikeRoute: false
         }
     },
@@ -103,17 +105,28 @@ async function loadData(retryCount = 0) {
             failedEndpoints.push('Ausstellungen');
         }
         
-        // Load categories with retry
+        // Load venue-amenity categories with retry
         try {
             const categoriesResponse = await fetchWithRetry(`${API_BASE}/categories`);
             const categoriesData = await categoriesResponse.json();
             App.data.categories = categoriesData.categories || [];
-            console.log(`✓ Loaded ${App.data.categories.length} categories`);
+            console.log(`✓ Loaded ${App.data.categories.length} venue categories`);
         } catch (error) {
             console.error('Failed to load categories:', error);
             failedEndpoints.push('Kategorien');
         }
-        
+
+        // Load event categories with retry
+        try {
+            const ecResponse = await fetchWithRetry(`${API_BASE}/event-categories`);
+            const ecData = await ecResponse.json();
+            App.data.eventCategories = ecData.categories || [];
+            console.log(`✓ Loaded ${App.data.eventCategories.length} event categories`);
+        } catch (error) {
+            console.error('Failed to load event categories:', error);
+            // Non-fatal: filter will just be empty
+        }
+
         // Show warning if some endpoints failed but app can still work
         if (failedEndpoints.length > 0 && failedEndpoints.length < 4) {
             const message = `Einige Daten konnten nicht geladen werden: ${failedEndpoints.join(', ')}`;
@@ -172,7 +185,7 @@ function populateFilters() {
         dateFilter.appendChild(option);
     });
     
-    // Populate category filter
+    // Populate venue-amenity filter
     const categoryFilter = document.getElementById('category-filter');
     App.data.categories.forEach(cat => {
         const option = document.createElement('option');
@@ -180,6 +193,18 @@ function populateFilters() {
         option.textContent = `${cat.name} (${cat.count})`;
         categoryFilter.appendChild(option);
     });
+
+    // Populate event-category filter — only show categories that actually have items
+    const eventCategoryFilter = document.getElementById('event-category-filter');
+    if (eventCategoryFilter) {
+        App.data.eventCategories.forEach(cat => {
+            if (!cat.count) return;
+            const option = document.createElement('option');
+            option.value = cat.name;
+            option.textContent = `${cat.name} (${cat.count})`;
+            eventCategoryFilter.appendChild(option);
+        });
+    }
 }
 
 // Mobile bottom-sheet wiring (no-op on desktop where the elements are display:none)
@@ -245,7 +270,7 @@ function switchView(view) {
 
 // Apply Filters
 function applyFilters() {
-    const { search, date, category, bikeRoute } = App.state.filters;
+    const { search, date, category, eventCategory, bikeRoute } = App.state.filters;
     const searchLower = search ? search.toLowerCase() : '';
     
     // Build venue → events / exhibitions lookups from the venueId on each
@@ -279,6 +304,16 @@ function applyFilters() {
             const hasEventOnDate = venueEvents.some(e => e.date === date);
             if (!hasEventOnDate) return false;
         }
+
+        // Event-category filter — venue must have at least one event or
+        // exhibition in this category (and on the selected date, if any).
+        if (eventCategory) {
+            const eventMatch = venueEvents.some(e =>
+                e.category === eventCategory && (!date || e.date === date)
+            );
+            const exhibitionMatch = venueExhibitions.some(ex => ex.category === eventCategory);
+            if (!eventMatch && !exhibitionMatch) return false;
+        }
         
         // Category filter - venue must offer this facility (Café, WC, …).
         // If a date filter is also active and the category has date restrictions,
@@ -303,10 +338,11 @@ function applyFilters() {
             if (venueMatches) return true;
             
             // Check events at this venue
-            const eventMatches = venueEvents.some(e => 
+            const eventMatches = venueEvents.some(e =>
                 e.title.toLowerCase().includes(searchLower) ||
                 (e.description && e.description.toLowerCase().includes(searchLower)) ||
-                (e.category && e.category.toLowerCase().includes(searchLower))
+                (e.category && e.category.toLowerCase().includes(searchLower)) ||
+                (e.artist && e.artist.toLowerCase().includes(searchLower))
             );
             
             if (eventMatches) return true;
@@ -378,9 +414,10 @@ function createResultItem(venue) {
         const venueExhibitions = App.data.exhibitions.filter(ex => ex.venueId === venue.id);
         
         // Count matching events
-        const matchingEvents = venueEvents.filter(e => 
+        const matchingEvents = venueEvents.filter(e =>
             e.title.toLowerCase().includes(searchLower) ||
-            (e.description && e.description.toLowerCase().includes(searchLower))
+            (e.description && e.description.toLowerCase().includes(searchLower)) ||
+            (e.artist && e.artist.toLowerCase().includes(searchLower))
         ).length;
         
         // Count matching exhibitions
@@ -425,22 +462,26 @@ async function _renderVenueModal(venueId) {
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
 
-        // Respect the active date + search filters so the modal only shows matching events.
+        // Respect the active date + search + event-category filters so the
+        // modal only shows matching events.
         const dateFilter = App.state.filters.date;
         const searchFilter = (App.state.filters.search || '').toLowerCase();
+        const eventCategoryFilter = App.state.filters.eventCategory;
         const allVenueEvents = venue.events || [];
         const venueEvents = allVenueEvents.filter(e => {
             if (dateFilter && e.date !== dateFilter) return false;
+            if (eventCategoryFilter && e.category !== eventCategoryFilter) return false;
             if (searchFilter) {
                 const hay =
                     e.title.toLowerCase() +
                     ' ' + (e.description ? e.description.toLowerCase() : '') +
-                    ' ' + (e.category ? e.category.toLowerCase() : '');
+                    ' ' + (e.category ? e.category.toLowerCase() : '') +
+                    ' ' + (e.artist ? e.artist.toLowerCase() : '');
                 if (!hay.includes(searchFilter)) return false;
             }
             return true;
         });
-        const isEventsFiltered = (dateFilter || searchFilter) && venueEvents.length !== allVenueEvents.length;
+        const isEventsFiltered = (dateFilter || searchFilter || eventCategoryFilter) && venueEvents.length !== allVenueEvents.length;
         const eventsHeading = dateFilter
             ? `Veranstaltungen am ${formatDate(dateFilter)} (${venueEvents.length})`
             : `Veranstaltungen (${venueEvents.length})`;
@@ -448,9 +489,10 @@ async function _renderVenueModal(venueId) {
             ? `<p class="filter-hint"><i class="fas fa-filter"></i> ${venueEvents.length} von ${allVenueEvents.length} Veranstaltungen entsprechen den aktiven Filtern.</p>`
             : '';
 
-        // Exhibitions have no date — only the search filter applies.
+        // Exhibitions have no date — search and event-category filters apply.
         const allVenueExhibitions = venue.exhibitions || [];
         const venueExhibitions = allVenueExhibitions.filter(ex => {
+            if (eventCategoryFilter && ex.category !== eventCategoryFilter) return false;
             if (!searchFilter) return true;
             const hay =
                 ex.title.toLowerCase() +
@@ -459,7 +501,7 @@ async function _renderVenueModal(venueId) {
                 ' ' + (ex.category ? ex.category.toLowerCase() : '');
             return hay.includes(searchFilter);
         });
-        const isExhibitionsFiltered = searchFilter && venueExhibitions.length !== allVenueExhibitions.length;
+        const isExhibitionsFiltered = (searchFilter || eventCategoryFilter) && venueExhibitions.length !== allVenueExhibitions.length;
         const exhibitionsFilterHint = isExhibitionsFiltered
             ? `<p class="filter-hint"><i class="fas fa-filter"></i> ${venueExhibitions.length} von ${allVenueExhibitions.length} Ausstellungen entsprechen der Suche.</p>`
             : '';
@@ -549,6 +591,7 @@ async function _renderEventModal(eventId) {
                 <p>${event.venue.name}<br>${event.venue.address.street}<br>${event.venue.address.postalCode} ${event.venue.address.city}</p>
             ` : ''}
 
+            ${event.artist ? `<p><i class="fas fa-user"></i> ${event.artist}</p>` : ''}
             ${event.admission ? `<p><i class="fas fa-ticket-alt"></i> Eintritt: ${event.admission}</p>` : ''}
             ${event.category ? `<p><i class="fas fa-tag"></i> Kategorie: ${event.category}</p>` : ''}
 

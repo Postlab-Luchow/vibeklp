@@ -324,7 +324,7 @@ func (p *LLMParser) unmarshalEventsBatch(jsonStr, venueID, venueName string) ([]
 				Date:        d.Date,
 				StartTime:   startTime,
 				EndTime:     endTime,
-				Category:    e.Artist,
+				Artist:      e.Artist,
 				Admission:   e.Admission,
 			}
 			events = append(events, event)

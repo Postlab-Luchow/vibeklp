@@ -33,6 +33,7 @@ func SetupRoutes(store *storage.Storage) *mux.Router {
 
 	// Categories
 	api.HandleFunc("/categories", handler.GetCategories).Methods("GET")
+	api.HandleFunc("/event-categories", handler.GetEventCategories).Methods("GET")
 
 	// Statistics
 	api.HandleFunc("/stats", handler.GetStats).Methods("GET")

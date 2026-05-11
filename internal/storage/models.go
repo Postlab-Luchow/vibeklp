@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -89,7 +90,8 @@ type Event struct {
 	Date        string `json:"date"` // ISO 8601: YYYY-MM-DD
 	StartTime   string `json:"startTime,omitempty"`
 	EndTime     string `json:"endTime,omitempty"`
-	Category    string `json:"category,omitempty"`
+	Artist      string `json:"artist,omitempty"`
+	Category    string `json:"category,omitempty"` // one of EventCategories (or empty if uncategorized)
 	Admission   string `json:"admission,omitempty"`
 	ImageURL    string `json:"imageUrl,omitempty"`
 }
@@ -181,4 +183,24 @@ type Statistics struct {
 type FestivalDates struct {
 	Start string `json:"start"`
 	End   string `json:"end"`
+}
+
+// EventCategories is the closed taxonomy of event/exhibition categories.
+// Order is also the display order in the UI. Keep stable — the
+// categorizer LLM is constrained to this list.
+var EventCategories = []string{
+	"Musik",
+	"Theater & Performance",
+	"Wort & Vortrag",
+	"Kunst & Workshop",
+	"Tanz & Bewegung",
+	"Film",
+	"Kulinarisches",
+	"Kinder & Familie",
+	"Sonstiges",
+}
+
+// IsValidEventCategory reports whether s is one of the known categories.
+func IsValidEventCategory(s string) bool {
+	return slices.Contains(EventCategories, s)
 }

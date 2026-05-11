@@ -36,6 +36,10 @@ func main() {
 	parseCached := flag.Bool("parse-cached", false, "Parse cached HTML with LLM without fetching (requires --use-llm and existing cache)")
 	fetchOnly := flag.Bool("fetch-only", false, "Only fetch and cache HTML, skip parsing")
 
+	// Categorize mode - assign event categories to existing events.json/exhibitions.json
+	categorize := flag.Bool("categorize", false, "Assign categories to existing events and exhibitions via LLM, then exit (no crawl)")
+	categorizeBatch := flag.Int("categorize-batch-size", 25, "Items per LLM call in --categorize mode")
+
 	flag.Parse()
 
 	// Setup logger
@@ -109,6 +113,56 @@ func main() {
 	var events []storage.Event
 	var exhibitions []storage.Exhibition
 	var err error
+
+	// Standalone post-processing: categorize already-crawled events/exhibitions.
+	// Does not crawl or geocode — only reads/writes data JSON.
+	if *categorize {
+		apiKey := os.Getenv("OPENROUTER_API_KEY")
+		if apiKey == "" {
+			log.Fatal("OPENROUTER_API_KEY environment variable is required for --categorize")
+		}
+
+		var cache *llm.Cache
+		if *llmCacheDir != "" && *llmCacheTTL > 0 {
+			cache = llm.NewCache(*llmCacheDir, *llmCacheTTL)
+			if err := cache.EnsureDir(); err != nil {
+				logger.Printf("[WARN] Failed to create LLM cache directory: %v", err)
+				cache = nil
+			}
+		}
+
+		categorizer := crawler.NewCategorizer(apiKey, *openRouterModel, cache, *categorizeBatch, logger)
+
+		logger.Println("\n[MODE] Categorizing existing events and exhibitions...")
+		loadedEvents, err := store.LoadEvents()
+		if err != nil {
+			log.Fatalf("Failed to load events.json: %v", err)
+		}
+		loadedExhibitions, err := store.LoadExhibitions()
+		if err != nil {
+			log.Fatalf("Failed to load exhibitions.json: %v", err)
+		}
+
+		if err := categorizer.CategorizeEvents(loadedEvents); err != nil {
+			log.Fatalf("Categorizing events failed: %v", err)
+		}
+		if err := categorizer.CategorizeExhibitions(loadedExhibitions); err != nil {
+			log.Fatalf("Categorizing exhibitions failed: %v", err)
+		}
+
+		if err := store.SaveEvents(loadedEvents); err != nil {
+			log.Fatalf("Failed to save events: %v", err)
+		}
+		if err := store.SaveExhibitions(loadedExhibitions); err != nil {
+			log.Fatalf("Failed to save exhibitions: %v", err)
+		}
+
+		logger.Println("\n=== Categorization Complete ===")
+		logger.Printf("Events:      %d", len(loadedEvents))
+		logger.Printf("Exhibitions: %d", len(loadedExhibitions))
+		logger.Printf("LLM tokens used: %d", categorizer.TotalTokens())
+		return
+	}
 
 	// Handle different modes
 	if *parseCached {

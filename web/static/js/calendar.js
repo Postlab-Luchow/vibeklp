@@ -45,7 +45,7 @@ function loadCalendar() {
 
 // Apply current filter state to events for calendar rendering
 function filterEventsForCalendar() {
-    const { search, date, category, bikeRoute } = App.state.filters;
+    const { search, date, category, eventCategory, bikeRoute } = App.state.filters;
     const searchLower = search ? search.toLowerCase() : '';
 
     const venuesById = new Map(App.data.venues.map(v => [v.id, v]));
@@ -59,7 +59,7 @@ function filterEventsForCalendar() {
         // Bike route filter — venue must be on a bike route
         if (bikeRoute && (!venue || !venue.bikeRoute)) return false;
 
-        // Category filter — venue must offer this facility
+        // Venue-amenity filter — venue must offer this facility
         if (category) {
             const cats = (venue && venue.categories) || [];
             const match = cats.find(c => c.name === category);
@@ -69,12 +69,16 @@ function filterEventsForCalendar() {
             }
         }
 
+        // Event-category filter — event itself must match
+        if (eventCategory && event.category !== eventCategory) return false;
+
         // Search filter — event fields OR venue fields
         if (searchLower) {
             const eventMatches =
                 event.title.toLowerCase().includes(searchLower) ||
                 (event.description && event.description.toLowerCase().includes(searchLower)) ||
-                (event.category && event.category.toLowerCase().includes(searchLower));
+                (event.category && event.category.toLowerCase().includes(searchLower)) ||
+                (event.artist && event.artist.toLowerCase().includes(searchLower));
 
             const venueMatches = venue && (
                 venue.name.toLowerCase().includes(searchLower) ||
