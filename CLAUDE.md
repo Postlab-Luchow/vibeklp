@@ -16,6 +16,12 @@ go build -o bin/ ./cmd/...
 
 # Run server (port 8081)
 go run cmd/server/main.go
+make server                        # also rebuilds tailwind.css first
+
+# Frontend CSS (Tailwind standalone CLI, no Node required)
+make css                           # one-shot rebuild of web/static/css/tailwind.css
+make css-watch                     # rebuild on every HTML/JS class change
+# First invocation downloads the tailwindcss binary into build/tools/ (gitignored).
 
 # Run crawler
 go run cmd/crawler/main.go                    # full crawl with geocoding
@@ -57,6 +63,8 @@ go mod tidy
 
 JS modules export functions to `window` (not ES6 modules) - don't refactor to ES6 imports without updating all cross-module references.
 
+**Styling:** Tailwind CSS (v3, standalone CLI — no Node toolchain). Source: `web/static/css/tailwind-input.css`. Generated: `web/static/css/tailwind.css` (committed; regenerate via `make css`). Config: `tailwind.config.js`. Semantic colors (`canvas`, `surface`, `ink`, `muted`, `accent`, `border`, etc.) are CSS variables defined in the `@layer base` block of the input file and swap automatically via `@media (prefers-color-scheme: dark)`. Always use semantic tokens (`bg-surface`, `text-ink`) instead of raw Tailwind palette colors so dark mode works for free. The `darkMode` strategy is `media`, not `class` — no toggle exists.
+
 ## Key Patterns and Gotchas
 
 - **API responses** are always wrapped: `{"venues": [...], "total": N}` - never bare arrays
@@ -67,7 +75,7 @@ JS modules export functions to `window` (not ES6 modules) - don't refactor to ES
 - **Hardcoded year**: Crawler hardcodes `2026` when parsing dates from DD.MM. format (`scraper.go`)
 - **Coordinate validation**: Venues must be within Wendland region (lat 52.5-53.5, lng 10.5-12.0)
 - **Venue IDs**: Slugified from venue name (lowercased, spaces to dashes)
-- **Static assets**: Served at `/static/` prefix, mapped to `web/static/` on disk. Caching is disabled so JS/CSS edits land on next reload.
+- **Static assets**: Served at `/static/` prefix, mapped to `web/static/` on disk. Caching is disabled so JS/CSS edits land on next reload. JS class changes still require a `tailwind.css` rebuild (`make css` or `make css-watch`).
 - **Calendar is filtered client-side**: `loadCalendar()` reads `App.data.events` and applies the active filter state (date/category/search/bike-route). `applyFilters()` re-renders the calendar when it's the active view. Don't reintroduce a server-side `/api/calendar` fetch.
 - **Modal back-stack**: `App.state.modalStack` holds `{type, id}` entries. Entry points (`showVenueDetails`/`showEventDetails`/`showExhibitionDetails`) reset the stack. Use `pushModal(type, id)` for in-modal navigation (e.g. clicking an event in a venue modal), `closeModal()` to pop+restore, `hideModal()` to fully dismiss (used by `centerMapOnVenue`).
 - **Mobile bottom sheet**: On `<=768px`, the sidebar is a fixed-position off-screen panel toggled via `body.sidebar-open`. Wired up in `initMobileSidebar()`. Auto-closes on tab switch and on any modal entry-point.
@@ -83,7 +91,7 @@ Tasks are tracked in `TASKS.md`. When working on a task:
 
 ## Deployment
 
-- `deploy/deploy.sh` - cross-compiles `cmd/server` for linux/amd64, rsyncs `server` + `web/` + `data/` + the systemd unit to a staging dir on the remote, and runs a sudo-elevated install into `/opt/vibeklp` owned by a system user `vibeklp`.
+- `deploy/deploy.sh` - regenerates Tailwind CSS via `make css`, cross-compiles `cmd/server` for linux/amd64, rsyncs `server` + `web/` + `data/` + the systemd unit to a staging dir on the remote, and runs a sudo-elevated install into `/opt/vibeklp` owned by a system user `vibeklp`.
 - `deploy/vibeklp.service` - systemd unit (User=vibeklp, WorkingDirectory=/opt/vibeklp, Restart=on-failure).
 - `deploy/deploy.env` (gitignored) - per-host settings sourced by `deploy.sh`. At minimum: `REMOTE=user@host`. Optional: `INSTALL_DIR`, `SERVICE_NAME`, `STAGING_DIR`. `REMOTE` is required (script aborts otherwise).
 - The deploy uses `rsync --delete`, so it overwrites `/opt/vibeklp/data` with the local `data/` snapshot — re-crawl locally before deploying if the server has fresher data.

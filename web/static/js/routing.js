@@ -14,13 +14,9 @@ function toggleRoutingMode() {
 
     if (routingMode) {
         btn.classList.add('active');
-        btn.style.background = '#FF6B9D';
-        btn.style.color = 'white';
         enableRoutingMode();
     } else {
         btn.classList.remove('active');
-        btn.style.background = '';
-        btn.style.color = '';
         minimizeRoutingMode();
     }
 }
@@ -97,17 +93,15 @@ function calculateRoute() {
         }),
         lineOptions: {
             styles: [
-                { color: '#FF6B9D', opacity: 0.8, weight: 6 }
+                { color: 'rgb(214, 51, 132)', opacity: 0.8, weight: 6 }
             ]
         },
         createMarker: function(i, waypoint, n) {
             const marker = L.marker(waypoint.latLng, {
                 draggable: false,
                 icon: L.divIcon({
-                    className: 'route-marker',
-                    html: `<div class="marker-pin" style="background-color: #FF6B9D;">
-                               <span style="transform: rotate(45deg); display: block;">${i + 1}</span>
-                           </div>`,
+                    className: 'custom-marker',
+                    html: `<div class="marker-pin"><span>${i + 1}</span></div>`,
                     iconSize: [30, 40],
                     iconAnchor: [15, 40]
                 })
@@ -142,34 +136,24 @@ function calculateRoute() {
 function showRoutingInstructions() {
     const div = document.createElement('div');
     div.id = 'routing-instructions';
-    div.style.cssText = `
-        position: absolute;
-        top: 60px;
-        right: 1rem;
-        background: white;
-        padding: 1rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        z-index: 500;
-        max-width: 300px;
-    `;
-    
+    div.className = 'absolute top-16 right-4 z-[500] w-[260px] max-w-[80vw] p-4 rounded-2xl bg-surface text-ink border border-border shadow-soft';
+
     div.innerHTML = `
-        <button class="routing-close-btn" onclick="toggleRoutingMode()" title="Routenplanung schließen" aria-label="Schließen">
+        <button class="absolute top-2 right-2 w-7 h-7 inline-flex items-center justify-center rounded-full bg-surface-elevated text-muted hover:bg-accent hover:text-white text-xs transition" onclick="toggleRoutingMode()" title="Routenplanung schließen" aria-label="Schließen">
             <i class="fas fa-times"></i>
         </button>
-        <h4 style="margin: 0 0 0.5rem 0; color: #FF6B9D; padding-right: 1.5rem;">
+        <h4 class="text-accent font-semibold text-sm flex items-center gap-1.5 pr-6">
             <i class="fas fa-route"></i> Routenplanung
         </h4>
-        <p style="margin: 0; font-size: 0.9rem;">
+        <p class="mt-1 text-xs text-muted leading-relaxed">
             Klicken Sie auf Orte auf der Karte, um eine Route zu planen.
         </p>
-        <div id="waypoints-list" style="margin-top: 0.5rem; font-size: 0.85rem;"></div>
-        <button onclick="clearRoute()" style="margin-top: 0.5rem; width: 100%; padding: 0.5rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; cursor: pointer;">
-            <i class="fas fa-trash"></i> Route löschen
+        <div id="waypoints-list" class="mt-2 text-xs space-y-0.5"></div>
+        <button onclick="clearRoute()" class="mt-3 w-full px-3 py-1.5 rounded-md bg-surface-elevated hover:bg-border text-xs transition">
+            <i class="fas fa-trash mr-1"></i> Route löschen
         </button>
     `;
-    
+
     document.querySelector('.content').appendChild(div);
 }
 
@@ -185,11 +169,9 @@ function hideRoutingInstructions() {
 function updateRoutingInstructions() {
     const list = document.getElementById('waypoints-list');
     if (!list) return;
-    
+
     list.innerHTML = selectedWaypoints.map((wp, i) => `
-        <div style="padding: 0.25rem 0;">
-            <strong>${i + 1}.</strong> ${wp.name}
-        </div>
+        <div class="py-0.5"><span class="text-muted">${i + 1}.</span> ${wp.name}</div>
     `).join('');
 }
 
@@ -197,7 +179,7 @@ function updateRoutingInstructions() {
 function showRouteInfo(distanceKm, timeMin) {
     const div = document.getElementById('routing-instructions');
     if (!div) return;
-    
+
     // Remove old info if exists
     const oldInfo = div.querySelector('.route-info');
     if (oldInfo) {
@@ -205,15 +187,7 @@ function showRouteInfo(distanceKm, timeMin) {
     }
 
     const infoDiv = document.createElement('div');
-    infoDiv.className = 'route-info';
-    infoDiv.style.cssText = `
-        margin-top: 0.5rem;
-        padding: 0.5rem;
-        background: #e7f5ff;
-        border-radius: 6px;
-        font-size: 0.85rem;
-    `;
-
+    infoDiv.className = 'route-info mt-3 p-2.5 rounded-md bg-accent/10 text-accent text-xs space-y-0.5';
     infoDiv.innerHTML = `
         <div><i class="fas fa-bicycle"></i> <strong>${distanceKm} km</strong></div>
         <div><i class="fas fa-clock"></i> ca. ${timeMin} Minuten</div>

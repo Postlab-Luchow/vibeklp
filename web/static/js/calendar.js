@@ -9,10 +9,10 @@ function loadCalendar() {
 
     if (events.length === 0) {
         calendarDiv.innerHTML = `
-            <div class="favorites-empty">
-                <i class="fas fa-calendar-times"></i>
-                <h3>Keine Veranstaltungen gefunden</h3>
-                <p>Bitte passen Sie Ihre Filter an.</p>
+            <div class="text-center py-20 px-6 text-muted">
+                <i class="fas fa-calendar-times text-4xl opacity-30 block mb-4"></i>
+                <h3 class="text-base font-medium text-ink">Keine Veranstaltungen gefunden</h3>
+                <p class="text-sm mt-1">Bitte passen Sie Ihre Filter an.</p>
             </div>
         `;
         return;
@@ -102,14 +102,14 @@ function getDayOfWeek(dateStr) {
 // Create Calendar Day
 function createCalendarDay(day) {
     const div = document.createElement('div');
-    div.className = 'calendar-day';
+    div.className = 'calendar-day mb-10';
 
     div.innerHTML = `
-        <h3>
-            <span>${formatDate(day.date)}</span>
-            <span class="badge">${day.eventCount} Events</span>
-        </h3>
-        <div class="event-grid" id="events-${day.date}"></div>
+        <div class="flex items-baseline justify-between gap-4 mb-4 pb-3 border-b border-border">
+            <h3 class="text-lg font-semibold tracking-tight">${formatDate(day.date)}</h3>
+            <span class="text-xs text-muted">${day.eventCount} Veranstaltung${day.eventCount === 1 ? '' : 'en'}</span>
+        </div>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" id="events-${day.date}"></div>
     `;
 
     const eventGrid = div.querySelector(`#events-${day.date}`);
@@ -125,21 +125,21 @@ function createCalendarDay(day) {
 // Create Event Card
 function createEventCard(event) {
     const div = document.createElement('div');
-    div.className = 'event-card';
+    div.className = 'event-card group cursor-pointer rounded-xl border border-border bg-surface hover:border-accent hover:shadow-soft p-4 transition flex flex-col';
 
     const isFav = isFavorite(event.id);
 
     div.innerHTML = `
-        <div class="time">${event.startTime || 'Ganztägig'}</div>
-        <h4>${event.title} ${typeof sourceBadge === 'function' ? sourceBadge(event.source) : ''}</h4>
-        <div class="venue">
-            <i class="fas fa-map-marker-alt"></i> ${event.venueName || 'Ort nicht angegeben'}
+        <div class="text-xs font-semibold text-accent tracking-wide uppercase">${event.startTime || 'Ganztägig'}</div>
+        <h4 class="mt-1 text-[15px] font-medium leading-snug">${event.title} ${typeof sourceBadge === 'function' ? sourceBadge(event.source) : ''}</h4>
+        <div class="mt-2 text-xs text-muted flex items-center gap-1.5">
+            <i class="fas fa-location-dot text-[10px] opacity-70"></i> ${event.venueName || 'Ort nicht angegeben'}
         </div>
-        ${event.category ? `<span class="category">${event.category}</span>` : ''}
-        ${event.admission ? `<div style="margin-top: 0.5rem; font-size: 0.85rem;"><i class="fas fa-ticket-alt"></i> ${event.admission}</div>` : ''}
-        <div class="popup-actions" style="margin-top: 1rem;">
-            <button class="btn-icon ${isFav ? 'active' : ''}" onclick="toggleFavorite('${event.id}', 'event'); event.stopPropagation();" title="Zu Favoriten hinzufügen">
-                <i class="fas fa-heart"></i>
+        ${event.category ? `<span class="mt-3 inline-flex w-fit items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${event.category}</span>` : ''}
+        ${event.admission ? `<div class="mt-2 text-xs text-muted"><i class="fas fa-ticket-alt text-[10px] mr-1 opacity-70"></i>${event.admission}</div>` : ''}
+        <div class="mt-3 pt-3 border-t border-border flex">
+            <button class="btn-icon ml-auto w-8 h-8 inline-flex items-center justify-center rounded-md border border-border text-muted hover:text-accent hover:border-accent transition ${isFav ? 'active' : ''}" onclick="toggleFavorite('${event.id}', 'event'); event.stopPropagation();" title="Zu Favoriten hinzufügen">
+                <i class="fas fa-heart text-xs"></i>
             </button>
         </div>
     `;

@@ -86,36 +86,39 @@ function createVenueMarker(venue) {
 // Create Popup Content
 function createPopupContent(venue) {
     const isFav = isFavorite(venue.id);
-    
+
     return `
-        <div class="popup-content">
-            <h3>${venue.name}</h3>
-            <p>${venue.address.city}</p>
-            
-            ${venue.bikeRoute ? `<p><i class="fas fa-bicycle"></i> ${venue.bikeRoute}</p>` : ''}
-            
-            <div class="meta">
-                <span><i class="fas fa-calendar"></i> ${venue.eventCount} Events</span>
-                <span><i class="fas fa-palette"></i> ${venue.exhibitionCount} Ausstellungen</span>
+        <div class="p-4 min-w-[220px] max-w-[280px]">
+            <h3 class="text-[15px] font-semibold tracking-tight text-ink leading-snug">${venue.name}</h3>
+            <p class="mt-1 text-xs text-muted flex items-center gap-1.5">
+                <i class="fas fa-location-dot text-[10px] opacity-70"></i> ${venue.address.city}
+            </p>
+
+            ${venue.bikeRoute ? `<p class="mt-2 text-xs text-muted"><i class="fas fa-bicycle text-[10px] mr-1 opacity-70"></i>${venue.bikeRoute}</p>` : ''}
+
+            <div class="mt-2 flex items-center gap-3 text-xs text-muted">
+                <span><i class="fas fa-calendar text-[10px] mr-1 opacity-70"></i>${venue.eventCount} Events</span>
+                <span><i class="fas fa-palette text-[10px] mr-1 opacity-70"></i>${venue.exhibitionCount} Ausst.</span>
             </div>
-            
-            <div class="popup-actions">
-                <button class="btn-primary" onclick="showVenueDetails('${venue.id}')">
+
+            <div class="mt-3 flex items-center gap-2">
+                <button class="inline-flex items-center gap-1 px-3 h-8 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent-strong transition" onclick="showVenueDetails('${venue.id}')">
                     Details
                 </button>
-                <button class="btn-icon ${isFav ? 'active' : ''}" onclick="toggleFavorite('${venue.id}', 'venue'); event.stopPropagation();">
-                    <i class="fas fa-heart"></i>
+                <button class="btn-icon w-8 h-8 inline-flex items-center justify-center rounded-md border border-border text-muted hover:text-accent hover:border-accent transition ${isFav ? 'active' : ''}" onclick="toggleFavorite('${venue.id}', 'venue'); event.stopPropagation();" aria-label="Favorit">
+                    <i class="fas fa-heart text-xs"></i>
                 </button>
             </div>
         </div>
     `;
 }
 
-// Get Venue Color
+// Get Venue Color — pin tint based on activity. Same values for light/dark
+// since the marker is over the map and uses its own bg layer.
 function getVenueColor(venue) {
-    if (venue.eventCount > 10) return '#FF6B9D';
-    if (venue.eventCount > 5) return '#FFA07A';
-    return '#4ECDC4';
+    if (venue.eventCount > 10) return '#D63384';
+    if (venue.eventCount > 5) return '#F472B6';
+    return '#5EAAA8';
 }
 
 // Center Map on Venue
@@ -173,58 +176,8 @@ function locateUser() {
     );
 }
 
-// Add custom marker styles
-const style = document.createElement('style');
-style.textContent = `
-    .custom-marker {
-        background: none;
-        border: none;
-    }
-    
-    .marker-pin {
-        width: 30px;
-        height: 40px;
-        border-radius: 50% 50% 50% 0;
-        background: #FF6B9D;
-        position: absolute;
-        transform: rotate(-45deg);
-        left: 50%;
-        top: 50%;
-        margin: -20px 0 0 -15px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-    
-    .marker-pin i {
-        transform: rotate(45deg);
-    }
-    
-    .marker-pin::after {
-        content: '';
-        width: 8px;
-        height: 8px;
-        margin: 20px 0 0 -4px;
-        background: #fff;
-        position: absolute;
-        border-radius: 50%;
-    }
-    
-    .leaflet-popup-content {
-        margin: 0;
-        padding: 0;
-    }
-    
-    .custom-popup .leaflet-popup-content-wrapper {
-        padding: 0;
-        border-radius: 12px;
-        overflow: hidden;
-    }
-`;
-document.head.appendChild(style);
+// Marker pin + popup styling lives in web/static/css/tailwind-input.css (the
+// generated tailwind.css picks them up via @layer components).
 
 // Export functions
 window.initMap = initMap;

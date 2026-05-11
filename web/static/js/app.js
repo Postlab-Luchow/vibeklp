@@ -42,6 +42,15 @@ function sourceBadge(source) {
     return `<span class="source-badge source-${source}">${label}</span>`;
 }
 
+// Section heading shared by all modal sections — small caps, muted, with
+// optional icon. Kept inline so the modal renderers stay readable.
+function sectionHeading(label) {
+    return `<h3 class="mt-7 text-[11px] uppercase tracking-[0.12em] font-semibold text-muted">${label}</h3>`;
+}
+
+// Common card styling for events/exhibitions rendered inside a modal.
+const MODAL_CARD_CLASS = 'cursor-pointer rounded-xl border border-border bg-surface hover:border-accent hover:shadow-soft p-4 transition';
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🎨 Kulturelle Landpartie App initializing...');
@@ -396,10 +405,10 @@ function updateResults() {
     // Show empty state if no results
     if (App.data.filteredVenues.length === 0) {
         resultsList.innerHTML = `
-            <div class="results-empty">
-                <i class="fas fa-search"></i>
-                <p>Keine Ergebnisse gefunden</p>
-                <p class="hint">Versuchen Sie andere Suchbegriffe oder Filter</p>
+            <div class="px-6 lg:px-8 py-12 text-center text-muted">
+                <i class="fas fa-search text-2xl opacity-40 block mb-3"></i>
+                <p class="text-sm">Keine Ergebnisse gefunden</p>
+                <p class="text-xs opacity-70 mt-1">Andere Suchbegriffe oder Filter probieren</p>
             </div>
         `;
         return;
@@ -415,51 +424,63 @@ function updateResults() {
 // Create Result Item for Venue
 function createResultItem(venue) {
     const div = document.createElement('div');
-    div.className = 'result-item';
-    
+    div.className = 'result-item group cursor-pointer px-6 lg:px-8 py-4 hover:bg-surface-elevated transition';
+
     // Calculate matching events/exhibitions for search highlight
     const { search } = App.state.filters;
     let matchInfo = '';
-    
+
     if (search && search.length >= 2) {
         const searchLower = search.toLowerCase();
         const venueEvents = App.data.events.filter(e => e.venueId === venue.id);
         const venueExhibitions = App.data.exhibitions.filter(ex => ex.venueId === venue.id);
-        
+
         // Count matching events
         const matchingEvents = venueEvents.filter(e =>
             e.title.toLowerCase().includes(searchLower) ||
             (e.description && e.description.toLowerCase().includes(searchLower)) ||
             (e.artist && e.artist.toLowerCase().includes(searchLower))
         ).length;
-        
+
         // Count matching exhibitions
-        const matchingExhibitions = venueExhibitions.filter(ex => 
+        const matchingExhibitions = venueExhibitions.filter(ex =>
             ex.title.toLowerCase().includes(searchLower) ||
             (ex.description && ex.description.toLowerCase().includes(searchLower)) ||
             (ex.artist && ex.artist.toLowerCase().includes(searchLower))
         ).length;
-        
+
         // Build match info string
         const matches = [];
         if (matchingEvents > 0) matches.push(`${matchingEvents} Event${matchingEvents > 1 ? 's' : ''}`);
         if (matchingExhibitions > 0) matches.push(`${matchingExhibitions} Ausstellung${matchingExhibitions > 1 ? 'en' : ''}`);
-        
+
         if (matches.length > 0) {
-            matchInfo = `<span class="match-badge"><i class="fas fa-search"></i> ${matches.join(', ')}</span>`;
+            matchInfo = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/15 text-accent text-[11px] font-medium">
+                <i class="fas fa-search text-[9px]"></i> ${matches.join(', ')}
+            </span>`;
         }
     }
-    
+
+    const counts = [];
+    if (venue.eventCount) counts.push(`<span><i class="fas fa-calendar text-[10px] mr-1 opacity-70"></i>${venue.eventCount} Events</span>`);
+    if (venue.exhibitionCount) counts.push(`<span><i class="fas fa-palette text-[10px] mr-1 opacity-70"></i>${venue.exhibitionCount} Ausstellungen</span>`);
+
     div.innerHTML = `
-        <h4><i class="fas fa-map-marker-alt"></i> ${venue.name} ${sourceBadge(venue.source)}</h4>
-        <p>${venue.address.city}</p>
-        <div class="meta">
-            <span><i class="fas fa-calendar"></i> ${venue.eventCount || 0} Events</span>
-            <span><i class="fas fa-palette"></i> ${venue.exhibitionCount || 0} Ausstellungen</span>
-            ${matchInfo}
-        </div>
+        <h4 class="text-[15px] font-semibold text-ink leading-snug group-hover:text-accent transition">
+            ${venue.name} ${sourceBadge(venue.source)}
+        </h4>
+        <p class="mt-0.5 text-[13px] text-muted flex items-center gap-1.5">
+            <i class="fas fa-location-dot text-[11px] opacity-70"></i>
+            ${venue.address.city || ''}
+        </p>
+        ${counts.length || matchInfo ? `
+            <div class="mt-2 flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                ${counts.join('')}
+                ${matchInfo}
+            </div>
+        ` : ''}
     `;
-    
+
     div.addEventListener('click', () => showVenueDetails(venue.id));
     return div;
 }
@@ -515,60 +536,65 @@ async function _renderVenueModal(venueId) {
             return hay.includes(searchFilter);
         });
         const isExhibitionsFiltered = (searchFilter || eventCategoryFilter) && venueExhibitions.length !== allVenueExhibitions.length;
+        const filterHintCls = 'mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-warn-bg text-warn-text text-xs';
         const exhibitionsFilterHint = isExhibitionsFiltered
-            ? `<p class="filter-hint"><i class="fas fa-filter"></i> ${venueExhibitions.length} von ${allVenueExhibitions.length} Ausstellungen entsprechen der Suche.</p>`
+            ? `<p class="${filterHintCls}"><i class="fas fa-filter"></i> ${venueExhibitions.length} von ${allVenueExhibitions.length} Ausstellungen entsprechen der Suche.</p>`
             : '';
 
         content.innerHTML = `
-            <h2>${venue.name} ${sourceBadge(venue.source)}</h2>
-            <p>${venue.description || ''}</p>
+            <h2 class="text-xl sm:text-2xl font-semibold tracking-tight pr-10">${venue.name} ${sourceBadge(venue.source)}</h2>
+            ${venue.description ? `<p class="mt-3 text-sm text-muted leading-relaxed">${venue.description}</p>` : ''}
 
-            <h3><i class="fas fa-map-marker-alt"></i> Adresse</h3>
-            <p>${venue.address.street}<br>${venue.address.postalCode} ${venue.address.city}</p>
+            ${sectionHeading('Adresse')}
+            <p class="mt-2 text-sm">${venue.address.street}<br>${venue.address.postalCode} ${venue.address.city}</p>
 
-            ${venue.contact.phone ? `<p><i class="fas fa-phone"></i> ${venue.contact.phone}</p>` : ''}
-            ${venue.contact.email ? `<p><i class="fas fa-envelope"></i> ${venue.contact.email}</p>` : ''}
-            ${venue.contact.website ? `<p><i class="fas fa-globe"></i> <a href="${venue.contact.website}" target="_blank">${venue.contact.website}</a></p>` : ''}
+            ${(venue.contact.phone || venue.contact.email || venue.contact.website) ? `
+                <div class="mt-3 space-y-1 text-sm text-muted">
+                    ${venue.contact.phone ? `<p><i class="fas fa-phone w-4 text-center text-[11px] opacity-70"></i> ${venue.contact.phone}</p>` : ''}
+                    ${venue.contact.email ? `<p><i class="fas fa-envelope w-4 text-center text-[11px] opacity-70"></i> ${venue.contact.email}</p>` : ''}
+                    ${venue.contact.website ? `<p><i class="fas fa-globe w-4 text-center text-[11px] opacity-70"></i> <a href="${venue.contact.website}" target="_blank" class="text-accent hover:underline">${venue.contact.website}</a></p>` : ''}
+                </div>
+            ` : ''}
 
             ${venueEvents.length > 0 ? `
-                <h3><i class="fas fa-calendar"></i> ${eventsHeading}</h3>
-                ${eventsFilterHint}
-                <div class="event-grid">
+                ${sectionHeading(eventsHeading)}
+                ${eventsFilterHint ? `<p class="${filterHintCls}"><i class="fas fa-filter"></i> ${venueEvents.length} von ${allVenueEvents.length} Veranstaltungen entsprechen den aktiven Filtern.</p>` : ''}
+                <div class="mt-3 grid sm:grid-cols-2 gap-3">
                     ${venueEvents.map(e => `
-                        <div class="event-card" onclick="pushModal('event', '${e.id}')">
-                            <div class="time">${formatDate(e.date)}${e.startTime ? ' · ' + e.startTime : ''}</div>
-                            <h4>${e.title}</h4>
-                            ${e.category ? `<span class="category">${e.category}</span>` : ''}
+                        <div class="${MODAL_CARD_CLASS}" onclick="pushModal('event', '${e.id}')">
+                            <div class="text-xs font-medium text-accent">${formatDate(e.date)}${e.startTime ? ' · ' + e.startTime : ''}</div>
+                            <h4 class="mt-1 font-medium leading-snug">${e.title}</h4>
+                            ${e.category ? `<span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${e.category}</span>` : ''}
                         </div>
                     `).join('')}
                 </div>
             ` : (allVenueEvents.length > 0 ? `
-                <h3><i class="fas fa-calendar"></i> Veranstaltungen (0)</h3>
-                <p class="filter-hint"><i class="fas fa-filter"></i> Keine der ${allVenueEvents.length} Veranstaltungen entspricht den aktiven Filtern.</p>
+                ${sectionHeading('Veranstaltungen (0)')}
+                <p class="${filterHintCls}"><i class="fas fa-filter"></i> Keine der ${allVenueEvents.length} Veranstaltungen entspricht den aktiven Filtern.</p>
             ` : '')}
 
             ${venueExhibitions.length > 0 ? `
-                <h3><i class="fas fa-palette"></i> Ausstellungen (${venueExhibitions.length})</h3>
+                ${sectionHeading(`Ausstellungen (${venueExhibitions.length})`)}
                 ${exhibitionsFilterHint}
-                <div class="event-grid">
+                <div class="mt-3 grid sm:grid-cols-2 gap-3">
                     ${venueExhibitions.map(ex => `
-                        <div class="event-card">
-                            <h4>${ex.title}</h4>
-                            ${ex.artist ? `<p>${ex.artist}</p>` : ''}
-                            ${ex.category ? `<span class="category">${ex.category}</span>` : ''}
+                        <div class="rounded-xl border border-border bg-surface p-4">
+                            <h4 class="font-medium leading-snug">${ex.title}</h4>
+                            ${ex.artist ? `<p class="mt-1 text-xs text-muted italic">${ex.artist}</p>` : ''}
+                            ${ex.category ? `<span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${ex.category}</span>` : ''}
                         </div>
                     `).join('')}
                 </div>
             ` : (allVenueExhibitions.length > 0 ? `
-                <h3><i class="fas fa-palette"></i> Ausstellungen (0)</h3>
-                <p class="filter-hint"><i class="fas fa-filter"></i> Keine der ${allVenueExhibitions.length} Ausstellungen entspricht der Suche.</p>
+                ${sectionHeading('Ausstellungen (0)')}
+                <p class="${filterHintCls}"><i class="fas fa-filter"></i> Keine der ${allVenueExhibitions.length} Ausstellungen entspricht der Suche.</p>
             ` : '')}
 
-            <div class="popup-actions">
-                <button class="btn-primary" onclick="centerMapOnVenue('${venue.id}')">
+            <div class="mt-8 flex items-center gap-2">
+                <button class="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-strong transition" onclick="centerMapOnVenue('${venue.id}')">
                     <i class="fas fa-map"></i> Auf Karte zeigen
                 </button>
-                <button class="btn-icon ${isFavorite(venue.id) ? 'active' : ''}" onclick="toggleFavorite('${venue.id}', 'venue')">
+                <button class="btn-icon w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border hover:border-accent hover:text-accent transition ${isFavorite(venue.id) ? 'active' : ''}" onclick="toggleFavorite('${venue.id}', 'venue')" aria-label="Favorit">
                     <i class="fas fa-heart"></i>
                 </button>
             </div>
@@ -593,28 +619,32 @@ async function _renderEventModal(eventId) {
         const content = document.getElementById('detail-content');
 
         content.innerHTML = `
-            <h2>${event.title} ${sourceBadge(event.source)}</h2>
-            <p>${event.description || ''}</p>
+            <h2 class="text-xl sm:text-2xl font-semibold tracking-tight pr-10">${event.title} ${sourceBadge(event.source)}</h2>
+            ${event.description ? `<p class="mt-3 text-sm text-muted leading-relaxed">${event.description}</p>` : ''}
 
-            <h3><i class="fas fa-calendar"></i> Wann</h3>
-            <p>${formatDate(event.date)} ${event.startTime ? `um ${event.startTime} Uhr` : ''}</p>
+            ${sectionHeading('Wann')}
+            <p class="mt-2 text-sm">${formatDate(event.date)} ${event.startTime ? `<span class="text-muted">um ${event.startTime} Uhr</span>` : ''}</p>
 
             ${event.venue ? `
-                <h3><i class="fas fa-map-marker-alt"></i> Wo</h3>
-                <p>${event.venue.name}<br>${event.venue.address.street}<br>${event.venue.address.postalCode} ${event.venue.address.city}</p>
+                ${sectionHeading('Wo')}
+                <p class="mt-2 text-sm">${event.venue.name}<br>${event.venue.address.street}<br>${event.venue.address.postalCode} ${event.venue.address.city}</p>
             ` : ''}
 
-            ${event.artist ? `<p><i class="fas fa-user"></i> ${event.artist}</p>` : ''}
-            ${event.admission ? `<p><i class="fas fa-ticket-alt"></i> Eintritt: ${event.admission}</p>` : ''}
-            ${event.category ? `<p><i class="fas fa-tag"></i> Kategorie: ${event.category}</p>` : ''}
+            ${(event.artist || event.admission || event.category) ? `
+                <div class="mt-4 space-y-1 text-sm text-muted">
+                    ${event.artist ? `<p><i class="fas fa-user w-4 text-center text-[11px] opacity-70"></i> ${event.artist}</p>` : ''}
+                    ${event.admission ? `<p><i class="fas fa-ticket-alt w-4 text-center text-[11px] opacity-70"></i> Eintritt: ${event.admission}</p>` : ''}
+                    ${event.category ? `<p><i class="fas fa-tag w-4 text-center text-[11px] opacity-70"></i> ${event.category}</p>` : ''}
+                </div>
+            ` : ''}
 
-            <div class="popup-actions">
+            <div class="mt-8 flex items-center gap-2">
                 ${event.venue ? `
-                    <button class="btn-primary" onclick="centerMapOnVenue('${event.venueId}')">
+                    <button class="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-strong transition" onclick="centerMapOnVenue('${event.venueId}')">
                         <i class="fas fa-map"></i> Auf Karte zeigen
                     </button>
                 ` : ''}
-                <button class="btn-icon ${isFavorite(eventId) ? 'active' : ''}" onclick="toggleFavorite('${eventId}', 'event')">
+                <button class="btn-icon w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border hover:border-accent hover:text-accent transition ${isFavorite(eventId) ? 'active' : ''}" onclick="toggleFavorite('${eventId}', 'event')" aria-label="Favorit">
                     <i class="fas fa-heart"></i>
                 </button>
             </div>
@@ -639,24 +669,24 @@ async function _renderExhibitionModal(exhibitionId) {
         const content = document.getElementById('detail-content');
 
         content.innerHTML = `
-            <h2>${exhibition.title}</h2>
-            ${exhibition.artist ? `<p style="font-style: italic; color: #666; margin-top: -0.5rem;"><i class="fas fa-palette"></i> ${exhibition.artist}</p>` : ''}
-            ${exhibition.description ? `<p>${exhibition.description}</p>` : ''}
+            <h2 class="text-xl sm:text-2xl font-semibold tracking-tight pr-10">${exhibition.title}</h2>
+            ${exhibition.artist ? `<p class="mt-2 text-sm text-muted italic"><i class="fas fa-palette text-[11px] mr-1 opacity-70"></i> ${exhibition.artist}</p>` : ''}
+            ${exhibition.description ? `<p class="mt-3 text-sm text-muted leading-relaxed">${exhibition.description}</p>` : ''}
 
             ${exhibition.venue ? `
-                <h3><i class="fas fa-map-marker-alt"></i> Wo</h3>
-                <p>${exhibition.venue.name}<br>${exhibition.venue.address.street}<br>${exhibition.venue.address.postalCode} ${exhibition.venue.address.city}</p>
+                ${sectionHeading('Wo')}
+                <p class="mt-2 text-sm">${exhibition.venue.name}<br>${exhibition.venue.address.street}<br>${exhibition.venue.address.postalCode} ${exhibition.venue.address.city}</p>
             ` : ''}
 
-            ${exhibition.category ? `<p><i class="fas fa-tag"></i> Kategorie: ${exhibition.category}</p>` : ''}
+            ${exhibition.category ? `<p class="mt-4 text-sm text-muted"><i class="fas fa-tag w-4 text-center text-[11px] opacity-70"></i> ${exhibition.category}</p>` : ''}
 
-            <div class="popup-actions">
+            <div class="mt-8 flex items-center gap-2">
                 ${exhibition.venue ? `
-                    <button class="btn-primary" onclick="centerMapOnVenue('${exhibition.venueId}')">
+                    <button class="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-strong transition" onclick="centerMapOnVenue('${exhibition.venueId}')">
                         <i class="fas fa-map"></i> Auf Karte zeigen
                     </button>
                 ` : ''}
-                <button class="btn-icon ${isFavorite(exhibitionId) ? 'active' : ''}" onclick="toggleFavorite('${exhibitionId}', 'exhibition')">
+                <button class="btn-icon w-10 h-10 inline-flex items-center justify-center rounded-lg border border-border hover:border-accent hover:text-accent transition ${isFavorite(exhibitionId) ? 'active' : ''}" onclick="toggleFavorite('${exhibitionId}', 'exhibition')" aria-label="Favorit">
                     <i class="fas fa-heart"></i>
                 </button>
             </div>
@@ -751,13 +781,13 @@ function showError(message, options = {}) {
     const errorId = 'error-' + Date.now();
     const errorDiv = document.createElement('div');
     errorDiv.id = errorId;
-    errorDiv.className = 'error-message';
+    errorDiv.className = 'alert-enter flex items-center gap-3 px-4 py-3 rounded-xl bg-danger-bg text-danger-text shadow-soft border border-danger-text/20';
     errorDiv.innerHTML = `
-        <i class="fas fa-exclamation-circle"></i>
-        <span>${escapeHtml(message)}</span>
-        ${options.retry ? `<button class="retry-btn" onclick="${options.retry}">Erneut versuchen</button>` : ''}
-        <button class="close-btn" onclick="dismissError('${errorId}')" aria-label="Fehler schließen">
-            <i class="fas fa-times"></i>
+        <i class="fas fa-exclamation-circle text-base shrink-0"></i>
+        <span class="text-sm flex-1">${escapeHtml(message)}</span>
+        ${options.retry ? `<button class="text-xs font-medium px-3 h-8 rounded-md bg-danger-text text-white hover:opacity-90 transition" onclick="${options.retry}">Erneut versuchen</button>` : ''}
+        <button class="w-7 h-7 inline-flex items-center justify-center rounded-md hover:bg-danger-text/10 transition" onclick="dismissError('${errorId}')" aria-label="Fehler schließen">
+            <i class="fas fa-times text-xs"></i>
         </button>
     `;
     
@@ -788,12 +818,12 @@ function showSuccess(message) {
     const successId = 'success-' + Date.now();
     const successDiv = document.createElement('div');
     successDiv.id = successId;
-    successDiv.className = 'success-message';
+    successDiv.className = 'alert-enter flex items-center gap-3 px-4 py-3 rounded-xl bg-success-bg text-success-text shadow-soft border border-success-text/20';
     successDiv.innerHTML = `
-        <i class="fas fa-check-circle"></i>
-        <span>${escapeHtml(message)}</span>
-        <button class="close-btn" onclick="dismissError('${successId}')" aria-label="Nachricht schließen" style="color: #155724;">
-            <i class="fas fa-times"></i>
+        <i class="fas fa-check-circle text-base shrink-0"></i>
+        <span class="text-sm flex-1">${escapeHtml(message)}</span>
+        <button class="w-7 h-7 inline-flex items-center justify-center rounded-md hover:bg-success-text/10 transition" onclick="dismissError('${successId}')" aria-label="Nachricht schließen">
+            <i class="fas fa-times text-xs"></i>
         </button>
     `;
     

@@ -30,12 +30,15 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/vibeklp}"
 SERVICE_NAME="${SERVICE_NAME:-vibeklp}"
 STAGING_DIR="${STAGING_DIR:-/tmp/vibeklp-deploy}"
 
-echo "==> [1/4] Cross-compiling server (linux/amd64)"
+echo "==> [1/5] Generating Tailwind CSS (web/static/css/tailwind.css)"
+make css
+
+echo "==> [2/5] Cross-compiling server (linux/amd64)"
 mkdir -p build
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w" -o build/server ./cmd/server
 
-echo "==> [2/4] Syncing files to ${REMOTE}:${STAGING_DIR}"
+echo "==> [3/5] Syncing files to ${REMOTE}:${STAGING_DIR}"
 ssh "$REMOTE" "rm -rf ${STAGING_DIR} && mkdir -p ${STAGING_DIR}"
 rsync -az --delete \
     build/server \
@@ -44,7 +47,7 @@ rsync -az --delete \
     deploy/${SERVICE_NAME}.service \
     "${REMOTE}:${STAGING_DIR}/"
 
-echo "==> [3/4] Installing on remote (you will be prompted for sudo)"
+echo "==> [4/5] Installing on remote (you will be prompted for sudo)"
 ssh -t "$REMOTE" sudo INSTALL_DIR="$INSTALL_DIR" SERVICE_NAME="$SERVICE_NAME" \
     STAGING_DIR="$STAGING_DIR" bash -s <<'REMOTE_SCRIPT'
 set -euo pipefail
@@ -76,4 +79,4 @@ systemctl --no-pager --lines=15 status "$SERVICE_NAME" || true
 rm -rf "$STAGING_DIR"
 REMOTE_SCRIPT
 
-echo "==> [4/4] Done. Service '${SERVICE_NAME}' restarted on ${REMOTE}."
+echo "==> [5/5] Done. Service '${SERVICE_NAME}' restarted on ${REMOTE}."

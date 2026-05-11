@@ -98,81 +98,55 @@ function loadFavorites() {
     
     if (totalFavorites === 0) {
         favoritesDiv.innerHTML = `
-            <div class="favorites-empty">
-                <i class="fas fa-heart-broken"></i>
-                <h3>Keine Favoriten</h3>
-                <p>Fügen Sie Orte und Events zu Ihren Favoriten hinzu, um sie hier zu sehen.</p>
+            <div class="text-center py-20 px-6 text-muted">
+                <i class="fas fa-heart-broken text-4xl opacity-30 block mb-4"></i>
+                <h3 class="text-base font-medium text-ink">Keine Favoriten</h3>
+                <p class="text-sm mt-1 max-w-sm mx-auto">Fügen Sie Orte und Events zu Ihren Favoriten hinzu, um sie hier zu sehen.</p>
             </div>
         `;
         return;
     }
-    
+
+    const renderSection = (label, iconClass, count, gridId) => {
+        const section = document.createElement('section');
+        section.className = 'mb-10';
+        section.innerHTML = `
+            <div class="flex items-baseline justify-between gap-4 mb-4 pb-3 border-b border-border">
+                <h3 class="text-lg font-semibold tracking-tight flex items-center gap-2">
+                    <i class="${iconClass} text-sm text-accent"></i> ${label}
+                </h3>
+                <span class="text-xs text-muted">${count}</span>
+            </div>
+            <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" id="${gridId}"></div>
+        `;
+        favoritesDiv.appendChild(section);
+        return section.querySelector('#' + gridId);
+    };
+
     // Favorite Venues
     if (favorites.venues && favorites.venues.length > 0) {
-        const venuesSection = document.createElement('div');
-        venuesSection.className = 'calendar-day';
-        venuesSection.innerHTML = `
-            <h3>
-                <span><i class="fas fa-map-marker-alt"></i> Orte</span>
-                <span class="badge">${favorites.venues.length}</span>
-            </h3>
-            <div class="event-grid" id="favorite-venues"></div>
-        `;
-        favoritesDiv.appendChild(venuesSection);
-        
-        const venuesGrid = venuesSection.querySelector('#favorite-venues');
+        const grid = renderSection('Orte', 'fas fa-map-marker-alt', favorites.venues.length, 'favorite-venues');
         favorites.venues.forEach(venueId => {
             const venue = App.data.venues.find(v => v.id === venueId);
-            if (venue) {
-                const card = createFavoriteVenueCard(venue);
-                venuesGrid.appendChild(card);
-            }
+            if (venue) grid.appendChild(createFavoriteVenueCard(venue));
         });
     }
-    
+
     // Favorite Events
     if (favorites.events && favorites.events.length > 0) {
-        const eventsSection = document.createElement('div');
-        eventsSection.className = 'calendar-day';
-        eventsSection.innerHTML = `
-            <h3>
-                <span><i class="fas fa-calendar"></i> Veranstaltungen</span>
-                <span class="badge">${favorites.events.length}</span>
-            </h3>
-            <div class="event-grid" id="favorite-events"></div>
-        `;
-        favoritesDiv.appendChild(eventsSection);
-        
-        const eventsGrid = eventsSection.querySelector('#favorite-events');
+        const grid = renderSection('Veranstaltungen', 'fas fa-calendar', favorites.events.length, 'favorite-events');
         favorites.events.forEach(eventId => {
             const event = App.data.events.find(e => e.id === eventId);
-            if (event) {
-                const card = createEventCard(event);
-                eventsGrid.appendChild(card);
-            }
+            if (event) grid.appendChild(createEventCard(event));
         });
     }
-    
+
     // Favorite Exhibitions
     if (favorites.exhibitions && favorites.exhibitions.length > 0) {
-        const exhibitionsSection = document.createElement('div');
-        exhibitionsSection.className = 'calendar-day';
-        exhibitionsSection.innerHTML = `
-            <h3>
-                <span><i class="fas fa-palette"></i> Ausstellungen</span>
-                <span class="badge">${favorites.exhibitions.length}</span>
-            </h3>
-            <div class="event-grid" id="favorite-exhibitions"></div>
-        `;
-        favoritesDiv.appendChild(exhibitionsSection);
-        
-        const exhibitionsGrid = exhibitionsSection.querySelector('#favorite-exhibitions');
+        const grid = renderSection('Ausstellungen', 'fas fa-palette', favorites.exhibitions.length, 'favorite-exhibitions');
         favorites.exhibitions.forEach(exhibitionId => {
             const exhibition = App.data.exhibitions.find(ex => ex.id === exhibitionId);
-            if (exhibition) {
-                const card = createFavoriteExhibitionCard(exhibition);
-                exhibitionsGrid.appendChild(card);
-            }
+            if (exhibition) grid.appendChild(createFavoriteExhibitionCard(exhibition));
         });
     }
     
@@ -182,55 +156,55 @@ function loadFavorites() {
 // Create Favorite Venue Card
 function createFavoriteVenueCard(venue) {
     const div = document.createElement('div');
-    div.className = 'event-card';
-    
+    div.className = 'group cursor-pointer rounded-xl border border-border bg-surface hover:border-accent hover:shadow-soft p-4 transition flex flex-col';
+
     div.innerHTML = `
-        <h4>${venue.name}</h4>
-        <div class="venue">
-            <i class="fas fa-map-marker-alt"></i> ${venue.address.city}
+        <h4 class="text-[15px] font-semibold leading-snug group-hover:text-accent transition">${venue.name}</h4>
+        <div class="mt-1 text-xs text-muted flex items-center gap-1.5">
+            <i class="fas fa-location-dot text-[10px] opacity-70"></i> ${venue.address.city}
         </div>
-        <div class="meta" style="margin-top: 0.5rem; font-size: 0.85rem;">
-            <span><i class="fas fa-calendar"></i> ${venue.eventCount} Events</span>
-            <span><i class="fas fa-palette"></i> ${venue.exhibitionCount} Ausstellungen</span>
+        <div class="mt-2 flex items-center gap-3 text-xs text-muted">
+            <span><i class="fas fa-calendar text-[10px] mr-1 opacity-70"></i>${venue.eventCount} Events</span>
+            <span><i class="fas fa-palette text-[10px] mr-1 opacity-70"></i>${venue.exhibitionCount} Ausstellungen</span>
         </div>
-        <div class="popup-actions" style="margin-top: 1rem;">
-            <button class="btn-icon active" onclick="toggleFavorite('${venue.id}', 'venue'); event.stopPropagation();" title="Aus Favoriten entfernen">
-                <i class="fas fa-heart"></i>
+        <div class="mt-3 pt-3 border-t border-border flex gap-2">
+            <button class="btn-icon active w-8 h-8 inline-flex items-center justify-center rounded-md border border-border transition" onclick="toggleFavorite('${venue.id}', 'venue'); event.stopPropagation();" title="Aus Favoriten entfernen">
+                <i class="fas fa-heart text-xs"></i>
             </button>
-            <button class="btn-icon" onclick="centerMapOnVenue('${venue.id}'); event.stopPropagation();" title="Auf Karte zeigen">
-                <i class="fas fa-map"></i>
+            <button class="w-8 h-8 inline-flex items-center justify-center rounded-md border border-border text-muted hover:text-accent hover:border-accent transition" onclick="centerMapOnVenue('${venue.id}'); event.stopPropagation();" title="Auf Karte zeigen">
+                <i class="fas fa-map text-xs"></i>
             </button>
         </div>
     `;
-    
+
     div.addEventListener('click', () => showVenueDetails(venue.id));
-    
+
     return div;
 }
 
 // Create Favorite Exhibition Card
 function createFavoriteExhibitionCard(exhibition) {
     const div = document.createElement('div');
-    div.className = 'event-card';
-    
+    div.className = 'group cursor-pointer rounded-xl border border-border bg-surface hover:border-accent hover:shadow-soft p-4 transition flex flex-col';
+
     div.innerHTML = `
-        <h4>${exhibition.title}</h4>
-        ${exhibition.artist ? `<div class="venue"><i class="fas fa-user"></i> ${exhibition.artist}</div>` : ''}
-        <div class="venue">
-            <i class="fas fa-map-marker-alt"></i> ${exhibition.venueName || 'Ort nicht angegeben'}
+        <h4 class="text-[15px] font-semibold leading-snug group-hover:text-accent transition">${exhibition.title}</h4>
+        ${exhibition.artist ? `<div class="mt-1 text-xs text-muted italic flex items-center gap-1.5"><i class="fas fa-user text-[10px] opacity-70"></i> ${exhibition.artist}</div>` : ''}
+        <div class="mt-1 text-xs text-muted flex items-center gap-1.5">
+            <i class="fas fa-location-dot text-[10px] opacity-70"></i> ${exhibition.venueName || 'Ort nicht angegeben'}
         </div>
-        ${exhibition.category ? `<span class="category">${exhibition.category}</span>` : ''}
-        <div class="popup-actions" style="margin-top: 1rem;">
-            <button class="btn-icon active" onclick="toggleFavorite('${exhibition.id}', 'exhibition'); event.stopPropagation();" title="Aus Favoriten entfernen">
-                <i class="fas fa-heart"></i>
+        ${exhibition.category ? `<span class="mt-3 inline-flex w-fit items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${exhibition.category}</span>` : ''}
+        <div class="mt-3 pt-3 border-t border-border flex">
+            <button class="btn-icon active ml-auto w-8 h-8 inline-flex items-center justify-center rounded-md border border-border transition" onclick="toggleFavorite('${exhibition.id}', 'exhibition'); event.stopPropagation();" title="Aus Favoriten entfernen">
+                <i class="fas fa-heart text-xs"></i>
             </button>
         </div>
     `;
-    
+
     div.addEventListener('click', () => {
         showExhibitionDetails(exhibition.id);
     });
-    
+
     return div;
 }
 
