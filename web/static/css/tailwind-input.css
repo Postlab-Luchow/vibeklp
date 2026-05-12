@@ -159,16 +159,33 @@
   .leaflet-popup-content-wrapper {
     background: rgb(var(--surface));
     color: rgb(var(--ink));
+    border: 1px solid rgb(var(--border));
     border-radius: 14px;
     padding: 0;
     box-shadow: theme('boxShadow.elevated');
   }
   .leaflet-popup-tip {
     background: rgb(var(--surface));
+    border: 1px solid rgb(var(--border));
   }
   .leaflet-popup-content {
     margin: 0;
     padding: 0;
+  }
+  /* Close button — Leaflet hardcodes #757575/#f4f4f4 which is illegible
+     on the dark surface. Match the modal close button instead. */
+  .leaflet-container a.leaflet-popup-close-button {
+    color: rgb(var(--muted));
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    line-height: 28px;
+    border-radius: 9999px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .leaflet-container a.leaflet-popup-close-button:hover {
+    background: rgb(var(--surface-elevated));
+    color: rgb(var(--ink));
   }
 
   /* Leaflet attribution + scale bars */
