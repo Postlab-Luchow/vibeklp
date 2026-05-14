@@ -252,6 +252,20 @@
     color: rgb(var(--accent-strong));
   }
 
+  /* Collapsible calendar day — `<details>`/`<summary>` with caret-on-right */
+  .calendar-day-summary {
+    list-style: none;
+  }
+  .calendar-day-summary::-webkit-details-marker {
+    display: none;
+  }
+  .calendar-day-caret {
+    transition: transform 0.2s ease-out;
+  }
+  .calendar-day[open] > .calendar-day-summary .calendar-day-caret {
+    transform: rotate(180deg);
+  }
+
   /* Loading spinner */
   .spinner {
     width: 44px;
