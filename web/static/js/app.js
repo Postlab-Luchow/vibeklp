@@ -48,6 +48,18 @@ function sectionHeading(label) {
     return `<h3 class="mt-7 text-[11px] uppercase tracking-[0.12em] font-semibold text-muted">${label}</h3>`;
 }
 
+// Opens a collapsible <details> section. Caller closes with `</details>`.
+// The caret rotates 180° when open via the .details-caret CSS rule.
+function collapsibleSectionOpen(label) {
+    return `
+        <details class="mt-7" open>
+            <summary class="details-summary flex items-center justify-between gap-3 cursor-pointer select-none">
+                <h3 class="text-[11px] uppercase tracking-[0.12em] font-semibold text-muted">${label}</h3>
+                <i class="fas fa-chevron-down text-[10px] text-muted details-caret"></i>
+            </summary>
+    `;
+}
+
 // Common card styling for events/exhibitions rendered inside a modal.
 const MODAL_CARD_CLASS = 'cursor-pointer rounded-xl border border-border bg-surface hover:border-accent hover:shadow-soft p-4 transition';
 
@@ -557,34 +569,36 @@ async function _renderVenueModal(venueId) {
             ` : ''}
 
             ${venueEvents.length > 0 ? `
-                ${sectionHeading(eventsHeading)}
-                ${eventsFilterHint ? `<p class="${filterHintCls}"><i class="fas fa-filter"></i> ${venueEvents.length} von ${allVenueEvents.length} Veranstaltungen entsprechen den aktiven Filtern.</p>` : ''}
-                <div class="mt-3 grid sm:grid-cols-2 gap-3">
-                    ${venueEvents.map(e => `
-                        <div class="${MODAL_CARD_CLASS}" onclick="pushModal('event', '${e.id}')">
-                            <div class="text-xs font-medium text-accent">${formatDate(e.date)}${e.startTime ? ' · ' + e.startTime : ''}</div>
-                            <h4 class="mt-1 font-medium leading-snug">${e.title}</h4>
-                            ${e.category ? `<span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${e.category}</span>` : ''}
-                        </div>
-                    `).join('')}
-                </div>
+                ${collapsibleSectionOpen(eventsHeading)}
+                    ${eventsFilterHint ? `<p class="${filterHintCls}"><i class="fas fa-filter"></i> ${venueEvents.length} von ${allVenueEvents.length} Veranstaltungen entsprechen den aktiven Filtern.</p>` : ''}
+                    <div class="mt-3 grid sm:grid-cols-2 gap-3">
+                        ${venueEvents.map(e => `
+                            <div class="${MODAL_CARD_CLASS}" onclick="pushModal('event', '${e.id}')">
+                                <div class="text-xs font-medium text-accent">${formatDate(e.date)}${e.startTime ? ' · ' + e.startTime : ''}</div>
+                                <h4 class="mt-1 font-medium leading-snug">${e.title}</h4>
+                                ${e.category ? `<span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${e.category}</span>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </details>
             ` : (allVenueEvents.length > 0 ? `
                 ${sectionHeading('Veranstaltungen (0)')}
                 <p class="${filterHintCls}"><i class="fas fa-filter"></i> Keine der ${allVenueEvents.length} Veranstaltungen entspricht den aktiven Filtern.</p>
             ` : '')}
 
             ${venueExhibitions.length > 0 ? `
-                ${sectionHeading(`Ausstellungen (${venueExhibitions.length})`)}
-                ${exhibitionsFilterHint}
-                <div class="mt-3 grid sm:grid-cols-2 gap-3">
-                    ${venueExhibitions.map(ex => `
-                        <div class="rounded-xl border border-border bg-surface p-4">
-                            <h4 class="font-medium leading-snug">${ex.title}</h4>
-                            ${ex.artist ? `<p class="mt-1 text-xs text-muted italic">${ex.artist}</p>` : ''}
-                            ${ex.category ? `<span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${ex.category}</span>` : ''}
-                        </div>
-                    `).join('')}
-                </div>
+                ${collapsibleSectionOpen(`Ausstellungen (${venueExhibitions.length})`)}
+                    ${exhibitionsFilterHint}
+                    <div class="mt-3 grid sm:grid-cols-2 gap-3">
+                        ${venueExhibitions.map(ex => `
+                            <div class="rounded-xl border border-border bg-surface p-4">
+                                <h4 class="font-medium leading-snug">${ex.title}</h4>
+                                ${ex.artist ? `<p class="mt-1 text-xs text-muted italic">${ex.artist}</p>` : ''}
+                                ${ex.category ? `<span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${ex.category}</span>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </details>
             ` : (allVenueExhibitions.length > 0 ? `
                 ${sectionHeading('Ausstellungen (0)')}
                 <p class="${filterHintCls}"><i class="fas fa-filter"></i> Keine der ${allVenueExhibitions.length} Ausstellungen entspricht der Suche.</p>

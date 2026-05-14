@@ -111,14 +111,14 @@ function createCalendarDay(day, collapsible) {
 
     const countLabel = `${day.eventCount} Veranstaltung${day.eventCount === 1 ? '' : 'en'}`;
     const headerTag = collapsible ? 'summary' : 'div';
-    const summaryClasses = collapsible ? ' cursor-pointer select-none calendar-day-summary' : '';
+    const summaryClasses = collapsible ? ' cursor-pointer select-none details-summary' : '';
 
     wrapper.innerHTML = `
         <${headerTag} class="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-border${summaryClasses}">
             <h3 class="text-lg font-semibold tracking-tight">${formatDate(day.date)}</h3>
             <div class="flex items-center gap-3 shrink-0">
                 <span class="text-xs text-muted">${countLabel}</span>
-                ${collapsible ? '<i class="fas fa-chevron-down text-xs text-muted calendar-day-caret"></i>' : ''}
+                ${collapsible ? '<i class="fas fa-chevron-down text-xs text-muted details-caret"></i>' : ''}
             </div>
         </${headerTag}>
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" id="events-${day.date}"></div>

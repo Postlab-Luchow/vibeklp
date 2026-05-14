@@ -252,17 +252,17 @@
     color: rgb(var(--accent-strong));
   }
 
-  /* Collapsible calendar day — `<details>`/`<summary>` with caret-on-right */
-  .calendar-day-summary {
+  /* Collapsible `<details>` sections — hide native marker, animate caret. */
+  .details-summary {
     list-style: none;
   }
-  .calendar-day-summary::-webkit-details-marker {
+  .details-summary::-webkit-details-marker {
     display: none;
   }
-  .calendar-day-caret {
+  .details-caret {
     transition: transform 0.2s ease-out;
   }
-  .calendar-day[open] > .calendar-day-summary .calendar-day-caret {
+  details[open] > .details-summary .details-caret {
     transform: rotate(180deg);
   }
 
