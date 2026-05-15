@@ -80,6 +80,13 @@ func (h *Handler) GetVenues(w http.ResponseWriter, r *http.Request) {
 		filtered = append(filtered, v)
 	}
 
+	// Strip personal contact info (phone, email) before responding — kept on
+	// disk for re-enabling later but not exposed publicly. See issue #14.
+	for i := range filtered {
+		filtered[i].Contact.Phone = ""
+		filtered[i].Contact.Email = ""
+	}
+
 	h.respondJSON(w, http.StatusOK, map[string]interface{}{
 		"venues": filtered,
 		"total":  len(filtered),
@@ -96,6 +103,10 @@ func (h *Handler) GetVenue(w http.ResponseWriter, r *http.Request) {
 		h.respondError(w, http.StatusNotFound, "Venue not found")
 		return
 	}
+
+	// Strip personal contact info (phone, email) — see issue #14.
+	venue.Contact.Phone = ""
+	venue.Contact.Email = ""
 
 	h.respondJSON(w, http.StatusOK, venue)
 }

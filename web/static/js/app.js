@@ -685,11 +685,9 @@ async function _renderVenueModal(venueId) {
             ${sectionHeading('Adresse')}
             <p class="mt-2 text-sm">${venue.address.street}<br>${venue.address.postalCode} ${venue.address.city}</p>
 
-            ${(venue.contact.phone || venue.contact.email || venue.contact.website) ? `
+            ${venue.contact.website ? `
                 <div class="mt-3 space-y-1 text-sm text-muted">
-                    ${venue.contact.phone ? `<p><i class="fas fa-phone w-4 text-center text-[11px] opacity-70"></i> ${venue.contact.phone}</p>` : ''}
-                    ${venue.contact.email ? `<p><i class="fas fa-envelope w-4 text-center text-[11px] opacity-70"></i> ${venue.contact.email}</p>` : ''}
-                    ${venue.contact.website ? `<p><i class="fas fa-globe w-4 text-center text-[11px] opacity-70"></i> <a href="${venue.contact.website}" target="_blank" class="text-accent hover:underline">${venue.contact.website}</a></p>` : ''}
+                    <p><i class="fas fa-globe w-4 text-center text-[11px] opacity-70"></i> <a href="${venue.contact.website}" target="_blank" class="text-accent hover:underline">${venue.contact.website}</a></p>
                 </div>
             ` : ''}
 
