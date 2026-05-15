@@ -535,6 +535,29 @@ async function _renderVenueModal(venueId) {
         const eventsHeading = dateFilter
             ? `Veranstaltungen am ${formatDate(dateFilter)} (${venueEvents.length})`
             : `Veranstaltungen (${venueEvents.length})`;
+
+        // Group events by date so multi-day venues mirror the calendar layout.
+        const venueEventsByDate = new Map();
+        for (const e of venueEvents) {
+            const key = e.date || '';
+            const list = venueEventsByDate.get(key);
+            if (list) list.push(e); else venueEventsByDate.set(key, [e]);
+        }
+        const venueEventDates = [...venueEventsByDate.keys()];
+        const eventsGroupedByDay = venueEventDates.length > 1;
+
+        const venueEventCard = (e, withDate) => {
+            const dateline = withDate
+                ? `${formatDate(e.date)}${e.startTime ? ' · ' + e.startTime : ''}`
+                : (e.startTime || 'Ganztägig');
+            return `
+                <div class="${MODAL_CARD_CLASS}" onclick="pushModal('event', '${e.id}')">
+                    <div class="text-xs font-medium text-accent">${dateline}</div>
+                    <h4 class="mt-1 font-medium leading-snug">${e.title}</h4>
+                    ${e.category ? `<span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${e.category}</span>` : ''}
+                </div>
+            `;
+        };
         const eventsFilterHint = isEventsFiltered
             ? `<p class="filter-hint"><i class="fas fa-filter"></i> ${venueEvents.length} von ${allVenueEvents.length} Veranstaltungen entsprechen den aktiven Filtern.</p>`
             : '';
@@ -575,15 +598,29 @@ async function _renderVenueModal(venueId) {
             ${venueEvents.length > 0 ? `
                 ${collapsibleSectionOpen(eventsHeading)}
                     ${eventsFilterHint ? `<p class="${filterHintCls}"><i class="fas fa-filter"></i> ${venueEvents.length} von ${allVenueEvents.length} Veranstaltungen entsprechen den aktiven Filtern.</p>` : ''}
-                    <div class="mt-3 grid sm:grid-cols-2 gap-3">
-                        ${venueEvents.map(e => `
-                            <div class="${MODAL_CARD_CLASS}" onclick="pushModal('event', '${e.id}')">
-                                <div class="text-xs font-medium text-accent">${formatDate(e.date)}${e.startTime ? ' · ' + e.startTime : ''}</div>
-                                <h4 class="mt-1 font-medium leading-snug">${e.title}</h4>
-                                ${e.category ? `<span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-md bg-accent/10 text-accent text-[11px] font-medium">${e.category}</span>` : ''}
-                            </div>
-                        `).join('')}
-                    </div>
+                    ${eventsGroupedByDay
+                        ? venueEventDates.map(date => {
+                            const dayEvents = venueEventsByDate.get(date);
+                            const countLabel = `${dayEvents.length} Veranstaltung${dayEvents.length === 1 ? '' : 'en'}`;
+                            return `
+                                <details class="mt-4" open>
+                                    <summary class="details-summary flex items-center justify-between gap-3 mb-3 pb-2 border-b border-border cursor-pointer select-none">
+                                        <h4 class="text-sm font-semibold tracking-tight">${formatDate(date)}</h4>
+                                        <div class="flex items-center gap-3 shrink-0">
+                                            <span class="text-xs text-muted">${countLabel}</span>
+                                            <i class="fas fa-chevron-down text-[10px] text-muted details-caret"></i>
+                                        </div>
+                                    </summary>
+                                    <div class="grid sm:grid-cols-2 gap-3">
+                                        ${dayEvents.map(e => venueEventCard(e, false)).join('')}
+                                    </div>
+                                </details>
+                            `;
+                          }).join('')
+                        : `<div class="mt-3 grid sm:grid-cols-2 gap-3">
+                                ${venueEvents.map(e => venueEventCard(e, true)).join('')}
+                           </div>`
+                    }
                 </details>
             ` : (allVenueEvents.length > 0 ? `
                 ${sectionHeading('Veranstaltungen (0)')}
