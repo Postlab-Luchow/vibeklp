@@ -126,7 +126,8 @@
                 </section>
 
                 <!-- Results -->
-                <section>
+                <!-- Hidden on mobile: the list under the filter sheet was being mistaken for additional filters. -->
+                <section class="hide-mobile">
                     <div class="flex items-center justify-between mb-1">
                         <h3 class="text-[11px] uppercase tracking-[0.12em] font-semibold text-muted">
                             <span id="results-count">0</span> Orte
@@ -228,6 +229,12 @@
             main { flex-direction: column; height: calc(100vh - 3.5rem); }
             .content { width: 100%; height: 100%; }
 
+            /* Hide elements that don't belong in the mobile filter sheet. */
+            .hide-mobile { display: none !important; }
+
+            /* Sidebar/backdrop/toggle z-indexes sit above the detail modal
+               (z-[2000]) so the filter sheet can be opened while a venue
+               modal is on screen. */
             .sidebar {
                 position: fixed;
                 left: 0; right: 0; bottom: 0;
@@ -240,7 +247,7 @@
                 box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.22);
                 transform: translateY(100%);
                 transition: transform 0.28s ease-out;
-                z-index: 1500;
+                z-index: 2200;
             }
             body.sidebar-open .sidebar { transform: translateY(0); }
 
@@ -266,7 +273,7 @@
                 position: fixed;
                 inset: 0;
                 background: rgba(0, 0, 0, 0.4);
-                z-index: 1450;
+                z-index: 2150;
                 opacity: 0;
                 pointer-events: none;
                 transition: opacity 0.22s;
@@ -281,7 +288,7 @@
                 position: fixed;
                 bottom: 1rem;
                 right: 1rem;
-                z-index: 1400;
+                z-index: 2100;
                 background: rgb(var(--accent));
                 color: white;
                 border: 0;

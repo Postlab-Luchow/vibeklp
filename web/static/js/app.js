@@ -303,6 +303,49 @@ function switchView(view) {
     }
 }
 
+// Count events/exhibitions at a venue that pass the active filters. When no
+// content filter is active we return the venue's stored totals untouched so
+// the result-list and map popups stay consistent with the venue modal.
+function venueFilteredCounts(venue) {
+    const f = App.state.filters;
+    const searchLower = (f.search || '').toLowerCase();
+    const hasFilter = !!(f.date || f.timeOfDay || f.eventCategory || searchLower);
+
+    if (!hasFilter) {
+        return { eventCount: venue.eventCount, exhibitionCount: venue.exhibitionCount, isFiltered: false };
+    }
+
+    const eventCount = App.data.events.reduce((n, e) => {
+        if (e.venueId !== venue.id) return n;
+        if (f.date && e.date !== f.date) return n;
+        if (!eventInTimeBucket(e, f.timeOfDay)) return n;
+        if (f.eventCategory && e.category !== f.eventCategory) return n;
+        if (searchLower) {
+            const hay = e.title.toLowerCase()
+                + ' ' + (e.description ? e.description.toLowerCase() : '')
+                + ' ' + (e.category ? e.category.toLowerCase() : '')
+                + ' ' + (e.artist ? e.artist.toLowerCase() : '');
+            if (!hay.includes(searchLower)) return n;
+        }
+        return n + 1;
+    }, 0);
+
+    const exhibitionCount = f.timeOfDay ? 0 : App.data.exhibitions.reduce((n, ex) => {
+        if (ex.venueId !== venue.id) return n;
+        if (f.eventCategory && ex.category !== f.eventCategory) return n;
+        if (searchLower) {
+            const hay = ex.title.toLowerCase()
+                + ' ' + (ex.description ? ex.description.toLowerCase() : '')
+                + ' ' + (ex.artist ? ex.artist.toLowerCase() : '')
+                + ' ' + (ex.category ? ex.category.toLowerCase() : '');
+            if (!hay.includes(searchLower)) return n;
+        }
+        return n + 1;
+    }, 0);
+
+    return { eventCount, exhibitionCount, isFiltered: true };
+}
+
 // Time-of-day buckets: event qualifies if its startTime (HH:MM) falls in the bucket.
 // Events without a startTime are excluded when any bucket is active.
 function eventInTimeBucket(event, bucket) {
@@ -431,6 +474,32 @@ function applyFilters() {
     if (App.state.currentView === 'calendar') {
         loadCalendar();
     }
+
+    // Refresh open venue modal so its events list reflects the new filter.
+    // Event/exhibition modals don't depend on filters, so they're skipped.
+    const topModal = App.state.modalStack[App.state.modalStack.length - 1];
+    if (topModal && topModal.type === 'venue') {
+        _renderVenueModal(topModal.id);
+    }
+}
+
+// Modal payload cache — keyed by "type:id". Data is static for the session,
+// so re-renders (e.g. after a filter change) skip the network round-trip and
+// the loading spinner.
+const _modalDataCache = new Map();
+
+async function _fetchModalData(type, id, url) {
+    const key = `${type}:${id}`;
+    if (_modalDataCache.has(key)) return _modalDataCache.get(key);
+    showLoading();
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        _modalDataCache.set(key, data);
+        return data;
+    } finally {
+        hideLoading();
+    }
 }
 
 // Update Results List - Show only venues
@@ -500,9 +569,11 @@ function createResultItem(venue) {
         }
     }
 
+    const { eventCount, exhibitionCount, isFiltered } = venueFilteredCounts(venue);
     const counts = [];
-    if (venue.eventCount) counts.push(`<span><i class="fas fa-calendar text-[10px] mr-1 opacity-70"></i>${venue.eventCount} Events</span>`);
-    if (venue.exhibitionCount) counts.push(`<span><i class="fas fa-palette text-[10px] mr-1 opacity-70"></i>${venue.exhibitionCount} Ausstellungen</span>`);
+    if (eventCount) counts.push(`<span><i class="fas fa-calendar text-[10px] mr-1 opacity-70"></i>${eventCount} Events</span>`);
+    if (exhibitionCount) counts.push(`<span><i class="fas fa-palette text-[10px] mr-1 opacity-70"></i>${exhibitionCount} Ausstellungen</span>`);
+    if (isFiltered) counts.push('<span class="text-accent" title="Gefilterte Anzahl"><i class="fas fa-filter text-[10px]"></i></span>');
 
     div.innerHTML = `
         <h4 class="text-[15px] font-semibold text-ink leading-snug group-hover:text-accent transition">
@@ -526,11 +597,8 @@ function createResultItem(venue) {
 
 // Modal stack — supports back-navigation between modals (e.g. venue → event → back to venue)
 async function _renderVenueModal(venueId) {
-    showLoading();
-
     try {
-        const response = await fetch(`${API_BASE}/venues/${venueId}`);
-        const venue = await response.json();
+        const venue = await _fetchModalData('venue', venueId, `${API_BASE}/venues/${venueId}`);
 
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
@@ -686,19 +754,14 @@ async function _renderVenueModal(venueId) {
         `;
 
         modal.classList.add('active');
-        hideLoading();
     } catch (error) {
         console.error('Error loading venue details:', error);
-        hideLoading();
     }
 }
 
 async function _renderEventModal(eventId) {
-    showLoading();
-
     try {
-        const response = await fetch(`${API_BASE}/events/${eventId}`);
-        const event = await response.json();
+        const event = await _fetchModalData('event', eventId, `${API_BASE}/events/${eventId}`);
 
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
@@ -736,19 +799,14 @@ async function _renderEventModal(eventId) {
         `;
 
         modal.classList.add('active');
-        hideLoading();
     } catch (error) {
         console.error('Error loading event details:', error);
-        hideLoading();
     }
 }
 
 async function _renderExhibitionModal(exhibitionId) {
-    showLoading();
-
     try {
-        const response = await fetch(`${API_BASE}/exhibitions/${exhibitionId}`);
-        const exhibition = await response.json();
+        const exhibition = await _fetchModalData('exhibition', exhibitionId, `${API_BASE}/exhibitions/${exhibitionId}`);
 
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
@@ -778,10 +836,8 @@ async function _renderExhibitionModal(exhibitionId) {
         `;
 
         modal.classList.add('active');
-        hideLoading();
     } catch (error) {
         console.error('Error loading exhibition details:', error);
-        hideLoading();
     }
 }
 

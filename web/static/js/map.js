@@ -86,6 +86,7 @@ function createVenueMarker(venue) {
 // Create Popup Content
 function createPopupContent(venue) {
     const isFav = isFavorite(venue.id);
+    const { eventCount, exhibitionCount, isFiltered } = venueFilteredCounts(venue);
 
     return `
         <div class="p-4 min-w-[220px] max-w-[280px]">
@@ -97,8 +98,9 @@ function createPopupContent(venue) {
             ${venue.bikeRoute ? `<p class="mt-2 text-xs text-muted"><i class="fas fa-bicycle text-[10px] mr-1 opacity-70"></i>${venue.bikeRoute}</p>` : ''}
 
             <div class="mt-2 flex items-center gap-3 text-xs text-muted">
-                <span><i class="fas fa-calendar text-[10px] mr-1 opacity-70"></i>${venue.eventCount} Events</span>
-                <span><i class="fas fa-palette text-[10px] mr-1 opacity-70"></i>${venue.exhibitionCount} Ausst.</span>
+                <span><i class="fas fa-calendar text-[10px] mr-1 opacity-70"></i>${eventCount} Events</span>
+                <span><i class="fas fa-palette text-[10px] mr-1 opacity-70"></i>${exhibitionCount} Ausst.</span>
+                ${isFiltered ? '<span class="text-accent" title="Gefilterte Anzahl"><i class="fas fa-filter text-[10px]"></i></span>' : ''}
             </div>
 
             <div class="mt-3 flex items-center gap-2">
