@@ -5,20 +5,22 @@ This document provides comprehensive guidance for AI agents working on the Kultu
 ## Project Overview
 
 **Kulturelle Landpartie** is a web application for a German cultural festival featuring:
-- Interactive map with ~87 venue locations
-- Calendar view for events and exhibitions
+- Interactive map with ~93 venue locations
+- Calendar view (events grouped by day, sorted by start time)
 - Search and filtering capabilities
 - Favorites management with local storage
 - Route planning between venues
+- Dark mode via `prefers-color-scheme`
 
 **Tech Stack:**
-- **Backend:** Go 1.25.5
+- **Backend:** Go 1.25 (see `go.mod` for exact toolchain)
 - **Frontend:** Vanilla JavaScript with Leaflet.js maps
+- **Styling:** Tailwind CSS v3 via the standalone CLI (no Node required)
 - **Data:** JSON files (no database)
 - **Router:** Gorilla Mux
-- **Scraping:** goquery for web crawling
+- **Scraping:** goquery for web crawling, optional LLM parsing via OpenRouter
 
-**Module:** `github.com/musche/klp`
+**Module:** `github.com/musche/klp` (repo lives at `Postlab-Luchow/vibeklp`)
 
 ## Essential Commands
 
@@ -28,21 +30,29 @@ This document provides comprehensive guidance for AI agents working on the Kultu
 # 1. Install dependencies
 go mod download
 
-# 2. Crawl data from kulturelle-landpartie.de
+# 2. Crawl data (defaults to kulturelle-landpartie.de; -source switches feeds)
 go run cmd/crawler/main.go
 
 # Crawler options:
 go run cmd/crawler/main.go -verbose              # Detailed logging
 go run cmd/crawler/main.go -skip-geocoding       # Skip geocoding (faster, no coordinates)
 go run cmd/crawler/main.go -output ./data        # Custom output directory
+go run cmd/crawler/main.go -source all           # klp | wendlandpartie | landgang | all
+go run cmd/crawler/main.go -use-llm              # Parse HTML with an LLM (needs OPENROUTER_API_KEY)
+go run cmd/crawler/main.go -h                    # Full list (cache, LLM model, categorize, ...)
 
-# 3. Start web server
+# 3. Build Tailwind CSS once (or run `make css-watch` while editing JS/HTML)
+make css
+
+# 4. Start web server
 go run cmd/server/main.go
+# Or: `make server` (rebuilds tailwind.css first, then starts the server)
 
 # Server options:
 go run cmd/server/main.go -port 8080             # Custom port (default: 8081)
 go run cmd/server/main.go -data ./data           # Custom data directory
 go run cmd/server/main.go -static ./web/static   # Custom static directory
+go run cmd/server/main.go -templates ./web/templates
 ```
 
 ### Building
@@ -87,7 +97,7 @@ go test ./internal/storage/... -run TestVenue_Validate
 go test -race ./...
 ```
 
-**Current Test Coverage:** 82.8% overall (API: 78.1%, Storage: 87.5%)
+Coverage targets and per-package breakdown live in [`TESTING.md`](TESTING.md); regenerate with `./test.sh -c` for current numbers.
 
 ### Linting
 
@@ -222,11 +232,13 @@ klp/
 │       └── json_test.go         # Storage tests
 ├── web/
 │   ├── static/
-│   │   ├── css/styles.css       # Global styles
+│   │   ├── css/
+│   │   │   ├── tailwind-input.css  # Tailwind source (semantic tokens, dark mode)
+│   │   │   └── tailwind.css        # Generated bundle (committed)
 │   │   ├── js/
-│   │   │   ├── app.js           # Main application logic
+│   │   │   ├── app.js           # Main application logic + modal stack
 │   │   │   ├── map.js           # Leaflet map integration
-│   │   │   ├── calendar.js      # Calendar view
+│   │   │   ├── calendar.js      # Calendar view (client-side filtered)
 │   │   │   ├── favorites.js     # Favorites management
 │   │   │   ├── filters.js       # Search & filter logic
 │   │   │   └── routing.js       # Route planning
@@ -237,17 +249,22 @@ klp/
 │   ├── venues.json
 │   ├── events.json
 │   └── exhibitions.json
+├── deploy/                      # Deploy script + systemd unit
+│   ├── deploy.sh
+│   └── vibeklp.service
 ├── plans/                       # Architecture documentation
 │   ├── kulturelle-landpartie-webapp.md
 │   ├── api-specification.md
 │   └── crawler-strategy.md
+├── Makefile                     # Tailwind build, server/crawler shortcuts
+├── tailwind.config.js           # Tailwind theme config
 ├── go.mod                       # Go module definition
 ├── go.sum                       # Dependency checksums
 ├── test.sh                      # Test runner script
 ├── README.md                    # User documentation
-├── QUICKSTART.md               # Quick start guide
-├── TESTING.md                  # Detailed testing guide
-└── TASKS.md                    # Frontend task tracker
+├── QUICKSTART.md                # Quick start guide
+├── TESTING.md                   # Detailed testing guide
+└── TASKS.md                     # Frontend task tracker
 ```
 
 ## Code Organization & Patterns
@@ -475,8 +492,9 @@ type Exhibition struct {
 - Exports: `initMap()`, `clearMap()`, `locateUser()`
 
 **`calendar.js`** - Calendar view
-- Fetches `/api/calendar` and renders event list grouped by date
-- German weekday formatting
+- Reads `App.data.events` and applies the active filter state — **no** server fetch (do not reintroduce one)
+- Events grouped by date, then sorted by `startTime` (whole-day events float to top)
+- Multi-day sections are collapsible `<details>` elements
 - Exports: `loadCalendar()`
 
 **`favorites.js`** - Favorites management
@@ -499,25 +517,19 @@ type Exhibition struct {
 
 ### CSS Organization
 
-Single file: `web/static/css/styles.css`
+Tailwind CSS v3 via the **standalone CLI** (no Node toolchain). Sources:
 
-**CSS Variables:**
-```css
---primary-color: #2C5F2D
---accent-color: #FFA07A
---text-color: #333
---bg-color: #F5F5F5
-```
+- `web/static/css/tailwind-input.css` — `@layer base` defines semantic CSS variables (`--canvas`, `--surface`, `--ink`, `--muted`, `--accent`, `--border`, …) and re-binds them inside a `@media (prefers-color-scheme: dark)` block.
+- `web/static/css/tailwind.css` — generated bundle, **committed** to the repo. Regenerate with `make css` (or `make css-watch`).
+- `tailwind.config.js` — `darkMode: 'media'`, custom colors mapped to the CSS variables (`bg-surface`, `text-ink`, `text-accent`, etc.).
 
-**Key classes:**
-- `.sidebar` - Left panel for filters/results
-- `.content` - Main map container
-- `.modal` - Event/venue detail modal
-- `.btn-*` - Button styles
-- `.card` - Result card component
+**Conventions:**
+- Always use semantic tokens (`bg-surface`, `text-ink`, `border-border`) — never raw palette colors (`bg-gray-100`, `text-zinc-900`). Dark mode works automatically.
+- No `dark:` class variants; the strategy is `media`, not `class`. There is no theme toggle.
+- A class change in HTML/JS won't appear until `tailwind.css` is regenerated.
 
 **Responsive breakpoints:**
-- `max-width: 768px` - Mobile layout (stacked views)
+- `max-width: 768px` triggers the mobile bottom-sheet sidebar (`body.sidebar-open`, wired in `initMobileSidebar()` in `app.js`).
 
 ## Important Gotchas & Non-Obvious Patterns
 
@@ -566,12 +578,7 @@ CORS middleware must be applied to the router in `cmd/server/main.go`. It's alre
 `storage.SaveVenues()`, `SaveEvents()`, etc. **overwrite** existing files. There's no append mode.
 
 ### 9. Venue ID Generation
-Venue IDs are slugified from the venue name. Ensure uniqueness when adding new venues.
-
-```go
-// Example: "Bankewitz" -> "bankewitz"
-id := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-```
+Venue IDs are an MD5-hash prefix of the venue's source identifier (see `GenerateID` in `internal/crawler/models.go`). The format is `venue-<8-byte-hex>`, e.g. `venue-4044317c59e8f143`. The same scheme is used for `event-…` and `exhibition-…` IDs.
 
 ### 10. Frontend Global Functions
 Several JS functions are exported to `window` for cross-module access:
@@ -618,10 +625,10 @@ The crawler logs warnings for individual venue failures but continues processing
 You may see warnings about unused dependencies (`github.com/rs/cors`) or indirect dependencies that should be direct. Run `go mod tidy` to fix.
 
 ### 16. Search Implementation (Venue-Centric)
-The search has been redesigned to be **venue-centric** rather than showing individual events/exhibitions:
+The search is **venue-centric** — results are venues, even when the match came from an event or exhibition.
 
 **How it works:**
-1. Results list shows only venues (max 88 items), not 1285+ mixed items
+1. Results list shows only venues (~93 items), not the ~1k mixed event/exhibition records
 2. Search checks: venue name/description/address + events/exhibitions AT that venue
 3. Match badges display "3 Events, 2 Ausstellungen" when search matches content
 4. Date/category filters show venues with matching events
@@ -830,44 +837,7 @@ go run cmd/server/main.go -port 8082
 
 ## Known Issues & TODOs
 
-See `TASKS.md` for a comprehensive list of known issues and planned improvements. High-priority items:
-
-1. **Missing API Response Fields** (`TASKS.md` #1)
-   - Events/exhibitions need `venueName` field populated
-   - Venues need `eventCount` and `exhibitionCount` computed
-
-2. **Search Results Missing Venue Names** (`TASKS.md` #6)
-   - Search endpoint doesn't populate venue names for events/exhibitions
-
-3. **No Input Validation** (`TASKS.md` #18)
-   - Frontend doesn't sanitize search inputs
-
-4. **go.mod Warnings**
-   - `github.com/rs/cors` is imported but unused
-   - Some dependencies marked as indirect but should be direct
-   - **Fix:** Run `go mod tidy`
-
-### Recently Fixed (2026-02-07)
-
-**✅ Error Handling System** (`TASKS.md` #3)
-- Replaced native `alert()` calls with inline error/success messages
-- Added retry logic with exponential backoff for failed API calls
-- Features: slide-in animations, auto-dismiss, close buttons, XSS protection
-
-**✅ Search Functionality** (Unlisted critical fix)
-- Fixed crash: `TypeError: Cannot read properties of undefined` when events lack descriptions
-- Redesigned search to be venue-centric (88 venues vs 1285 mixed items)
-- Search scope expanded to include events and exhibitions at each venue
-- Added match badges showing matching content per venue
-- Added empty state with helpful messaging
-
-**Issues Encountered During Search Fix:**
-- **Null Description Bug**: 88 of 1197 events had no description field, causing `.toLowerCase()` to crash
-  - Solution: Implemented null-safe property access `(description && description.toLowerCase())`
-- **Venue-Event Data Mismatch**: Some venues show 0 events despite having eventIds
-  - Investigation revealed data structure inconsistency between crawler and frontend
-  - Search logic is correct; this is a data population issue from crawler
-  - Venues exist and are searchable, but event counts may not match expectations
+`TASKS.md` is the source of truth — completed items are struck through with a date; open items live under their priority section. Check there before re-implementing anything that looks broken.
 
 ## Documentation Files
 
@@ -886,19 +856,4 @@ For issues or questions:
 - Review `internal/crawler/AGENTS.md` for crawler-specific issues
 - Check browser console for frontend errors
 - Review server logs for API errors
-- GitHub issues: https://github.com/musche/klp/issues
-
----
-
-**Last Updated:** 2026-02-07  
-**Go Version:** 1.25.5  
-**Test Coverage:** 82.8% (API: 78.1%, Storage: 87.5%)  
-**Total Lines of Code:** ~3,291 (Go only)
-
-## Recent Changes Summary
-
-### 2026-02-07 - Error Handling & Search Improvements
-- **Error Handling (#3)**: Replaced alert() with inline messages and retry logic
-- **Search Fix**: Complete redesign to be venue-centric, fixed null description bug
-- **Empty State**: Added "No results found" messaging
-- **Files Modified**: app.js, favorites.js, map.js, styles.css, index.html
+- GitHub issues: https://github.com/Postlab-Luchow/vibeklp/issues
