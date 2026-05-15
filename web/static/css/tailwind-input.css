@@ -128,20 +128,64 @@
     border-radius: 50%;
   }
 
+  /* MarkerCluster count bubbles ship with hardcoded pastel fills that stay
+     bright on the dimmed dark-mode map tiles. Re-tint them so they read as
+     part of the dark theme while preserving the small/medium/large gradient. */
+  @media (prefers-color-scheme: dark) {
+    .marker-cluster-small {
+      background-color: rgba(110, 204, 57, 0.25);
+    }
+    .marker-cluster-small div {
+      background-color: rgba(110, 204, 57, 0.75);
+      color: rgb(244 244 245);
+    }
+    .marker-cluster-medium {
+      background-color: rgba(240, 194, 12, 0.25);
+    }
+    .marker-cluster-medium div {
+      background-color: rgba(240, 194, 12, 0.8);
+      color: rgb(26 26 26);
+    }
+    .marker-cluster-large {
+      background-color: rgba(241, 128, 23, 0.3);
+    }
+    .marker-cluster-large div {
+      background-color: rgba(241, 128, 23, 0.85);
+      color: rgb(244 244 245);
+    }
+  }
+
   /* Leaflet popup chrome */
   .leaflet-popup-content-wrapper {
     background: rgb(var(--surface));
     color: rgb(var(--ink));
+    border: 1px solid rgb(var(--border));
     border-radius: 14px;
     padding: 0;
     box-shadow: theme('boxShadow.elevated');
   }
   .leaflet-popup-tip {
     background: rgb(var(--surface));
+    border: 1px solid rgb(var(--border));
   }
   .leaflet-popup-content {
     margin: 0;
     padding: 0;
+  }
+  /* Close button — Leaflet hardcodes #757575/#f4f4f4 which is illegible
+     on the dark surface. Match the modal close button instead. */
+  .leaflet-container a.leaflet-popup-close-button {
+    color: rgb(var(--muted));
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+    line-height: 28px;
+    border-radius: 9999px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .leaflet-container a.leaflet-popup-close-button:hover {
+    background: rgb(var(--surface-elevated));
+    color: rgb(var(--ink));
   }
 
   /* Leaflet attribution + scale bars */
@@ -206,6 +250,20 @@
   }
   .leaflet-routing-remove-waypoint {
     color: rgb(var(--accent-strong));
+  }
+
+  /* Collapsible `<details>` sections — hide native marker, animate caret. */
+  .details-summary {
+    list-style: none;
+  }
+  .details-summary::-webkit-details-marker {
+    display: none;
+  }
+  .details-caret {
+    transition: transform 0.2s ease-out;
+  }
+  details[open] > .details-summary .details-caret {
+    transform: rotate(180deg);
   }
 
   /* Loading spinner */

@@ -4,6 +4,13 @@ module.exports = {
     './web/templates/**/*.html',
     './web/static/js/**/*.js',
   ],
+  safelist: [
+    // Leaflet and MarkerCluster apply these classes at runtime, so they
+    // don't appear in our HTML/JS sources. Without the safelist, the
+    // tree-shaker would strip our overrides in @layer components.
+    { pattern: /^leaflet-/ },
+    { pattern: /^marker-cluster/ },
+  ],
   darkMode: 'media',
   theme: {
     extend: {

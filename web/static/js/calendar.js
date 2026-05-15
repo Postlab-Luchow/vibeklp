@@ -27,16 +27,20 @@ function loadCalendar() {
     }
 
     const sortedDates = [...byDate.keys()].sort();
+    const collapsible = sortedDates.length > 1;
 
     sortedDates.forEach(date => {
         const dateEvents = byDate.get(date);
+        // Whole-day events (no startTime) float to the top; the rest sort
+        // ascending by HH:MM start time.
+        dateEvents.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
         const day = {
             date: date,
             dayOfWeek: getDayOfWeek(date),
             eventCount: dateEvents.length,
             events: dateEvents
         };
-        const dayDiv = createCalendarDay(day);
+        const dayDiv = createCalendarDay(day, collapsible);
         calendarDiv.appendChild(dayDiv);
     });
 
@@ -100,26 +104,34 @@ function getDayOfWeek(dateStr) {
 }
 
 // Create Calendar Day
-function createCalendarDay(day) {
-    const div = document.createElement('div');
-    div.className = 'calendar-day mb-10';
+function createCalendarDay(day, collapsible) {
+    const wrapper = document.createElement(collapsible ? 'details' : 'div');
+    wrapper.className = 'calendar-day mb-10';
+    if (collapsible) wrapper.open = true;
 
-    div.innerHTML = `
-        <div class="flex items-baseline justify-between gap-4 mb-4 pb-3 border-b border-border">
+    const countLabel = `${day.eventCount} Veranstaltung${day.eventCount === 1 ? '' : 'en'}`;
+    const headerTag = collapsible ? 'summary' : 'div';
+    const summaryClasses = collapsible ? ' cursor-pointer select-none details-summary' : '';
+
+    wrapper.innerHTML = `
+        <${headerTag} class="flex items-center justify-between gap-4 mb-4 pb-3 border-b border-border${summaryClasses}">
             <h3 class="text-lg font-semibold tracking-tight">${formatDate(day.date)}</h3>
-            <span class="text-xs text-muted">${day.eventCount} Veranstaltung${day.eventCount === 1 ? '' : 'en'}</span>
-        </div>
+            <div class="flex items-center gap-3 shrink-0">
+                <span class="text-xs text-muted">${countLabel}</span>
+                ${collapsible ? '<i class="fas fa-chevron-down text-xs text-muted details-caret"></i>' : ''}
+            </div>
+        </${headerTag}>
         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" id="events-${day.date}"></div>
     `;
 
-    const eventGrid = div.querySelector(`#events-${day.date}`);
+    const eventGrid = wrapper.querySelector(`#events-${day.date}`);
 
     day.events.forEach(event => {
         const eventCard = createEventCard(event);
         eventGrid.appendChild(eventCard);
     });
 
-    return div;
+    return wrapper;
 }
 
 // Create Event Card
