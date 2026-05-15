@@ -17,6 +17,7 @@ const App = {
         filters: {
             search: '',
             date: '',
+            timeOfDay: '',
             category: '',
             eventCategory: '',
             bikeRoute: false
@@ -302,9 +303,24 @@ function switchView(view) {
     }
 }
 
+// Time-of-day buckets: event qualifies if its startTime (HH:MM) falls in the bucket.
+// Events without a startTime are excluded when any bucket is active.
+function eventInTimeBucket(event, bucket) {
+    if (!bucket) return true;
+    if (!event.startTime) return false;
+    const t = event.startTime;
+    switch (bucket) {
+        case 'morning':   return t < '13:00';
+        case 'afternoon': return t >= '13:00' && t < '17:00';
+        case 'evening':   return t >= '17:00' && t < '21:00';
+        case 'late':      return t >= '21:00';
+        default:          return true;
+    }
+}
+
 // Apply Filters
 function applyFilters() {
-    const { search, date, category, eventCategory, bikeRoute } = App.state.filters;
+    const { search, date, timeOfDay, category, eventCategory, bikeRoute } = App.state.filters;
     const searchLower = search ? search.toLowerCase() : '';
     
     // Build venue → events / exhibitions lookups from the venueId on each
@@ -333,19 +349,30 @@ function applyFilters() {
         const venueEvents = eventsByVenue.get(venue.id) || [];
         const venueExhibitions = exhibitionsByVenue.get(venue.id) || [];
         
-        // Date filter - venue must have event on this date
+        // Date filter - venue must have an event on this date (and in the
+        // selected time bucket, if any).
         if (date) {
-            const hasEventOnDate = venueEvents.some(e => e.date === date);
+            const hasEventOnDate = venueEvents.some(e =>
+                e.date === date && eventInTimeBucket(e, timeOfDay)
+            );
             if (!hasEventOnDate) return false;
+        } else if (timeOfDay) {
+            // Time-only filter — venue must have at least one event in this bucket.
+            const hasEventInTime = venueEvents.some(e => eventInTimeBucket(e, timeOfDay));
+            if (!hasEventInTime) return false;
         }
 
         // Event-category filter — venue must have at least one event or
-        // exhibition in this category (and on the selected date, if any).
+        // exhibition in this category (and on the selected date / in the
+        // selected time bucket, if any). Exhibitions have no time, so they
+        // never satisfy a time filter.
         if (eventCategory) {
             const eventMatch = venueEvents.some(e =>
-                e.category === eventCategory && (!date || e.date === date)
+                e.category === eventCategory &&
+                (!date || e.date === date) &&
+                eventInTimeBucket(e, timeOfDay)
             );
-            const exhibitionMatch = venueExhibitions.some(ex => ex.category === eventCategory);
+            const exhibitionMatch = !timeOfDay && venueExhibitions.some(ex => ex.category === eventCategory);
             if (!eventMatch && !exhibitionMatch) return false;
         }
         
@@ -508,14 +535,16 @@ async function _renderVenueModal(venueId) {
         const modal = document.getElementById('detail-modal');
         const content = document.getElementById('detail-content');
 
-        // Respect the active date + search + event-category filters so the
-        // modal only shows matching events.
+        // Respect the active date + time + search + event-category filters so
+        // the modal only shows matching events.
         const dateFilter = App.state.filters.date;
+        const timeFilter = App.state.filters.timeOfDay;
         const searchFilter = (App.state.filters.search || '').toLowerCase();
         const eventCategoryFilter = App.state.filters.eventCategory;
         const allVenueEvents = venue.events || [];
         const venueEvents = allVenueEvents.filter(e => {
             if (dateFilter && e.date !== dateFilter) return false;
+            if (!eventInTimeBucket(e, timeFilter)) return false;
             if (eventCategoryFilter && e.category !== eventCategoryFilter) return false;
             if (searchFilter) {
                 const hay =
@@ -531,7 +560,7 @@ async function _renderVenueModal(venueId) {
             if (dateCmp !== 0) return dateCmp;
             return (a.startTime || '').localeCompare(b.startTime || '');
         });
-        const isEventsFiltered = (dateFilter || searchFilter || eventCategoryFilter) && venueEvents.length !== allVenueEvents.length;
+        const isEventsFiltered = (dateFilter || timeFilter || searchFilter || eventCategoryFilter) && venueEvents.length !== allVenueEvents.length;
         const eventsHeading = dateFilter
             ? `Veranstaltungen am ${formatDate(dateFilter)} (${venueEvents.length})`
             : `Veranstaltungen (${venueEvents.length})`;
@@ -562,9 +591,10 @@ async function _renderVenueModal(venueId) {
             ? `<p class="filter-hint"><i class="fas fa-filter"></i> ${venueEvents.length} von ${allVenueEvents.length} Veranstaltungen entsprechen den aktiven Filtern.</p>`
             : '';
 
-        // Exhibitions have no date — search and event-category filters apply.
+        // Exhibitions have no time/date — they're hidden entirely when a time
+        // bucket is active; otherwise search and event-category filters apply.
         const allVenueExhibitions = venue.exhibitions || [];
-        const venueExhibitions = allVenueExhibitions.filter(ex => {
+        const venueExhibitions = timeFilter ? [] : allVenueExhibitions.filter(ex => {
             if (eventCategoryFilter && ex.category !== eventCategoryFilter) return false;
             if (!searchFilter) return true;
             const hay =
@@ -574,7 +604,7 @@ async function _renderVenueModal(venueId) {
                 ' ' + (ex.category ? ex.category.toLowerCase() : '');
             return hay.includes(searchFilter);
         });
-        const isExhibitionsFiltered = (searchFilter || eventCategoryFilter) && venueExhibitions.length !== allVenueExhibitions.length;
+        const isExhibitionsFiltered = (timeFilter || searchFilter || eventCategoryFilter) && venueExhibitions.length !== allVenueExhibitions.length;
         const filterHintCls = 'mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-warn-bg text-warn-text text-xs';
         const exhibitionsFilterHint = isExhibitionsFiltered
             ? `<p class="${filterHintCls}"><i class="fas fa-filter"></i> ${venueExhibitions.length} von ${allVenueExhibitions.length} Ausstellungen entsprechen der Suche.</p>`

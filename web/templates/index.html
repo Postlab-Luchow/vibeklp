@@ -94,6 +94,17 @@
                         </label>
 
                         <label class="block">
+                            <span class="block text-xs text-muted mb-1">Tageszeit</span>
+                            <select id="time-filter" class="w-full h-9 px-3 rounded-lg border border-border bg-surface hover:border-border-strong focus:border-accent focus:outline-none text-sm transition">
+                                <option value="">Ganzer Tag</option>
+                                <option value="morning">Vormittag (bis 13 Uhr)</option>
+                                <option value="afternoon">Nachmittag (13–17 Uhr)</option>
+                                <option value="evening">Abend (17–21 Uhr)</option>
+                                <option value="late">Spät (ab 21 Uhr)</option>
+                            </select>
+                        </label>
+
+                        <label class="block">
                             <span class="block text-xs text-muted mb-1">Kategorie</span>
                             <select id="event-category-filter" class="w-full h-9 px-3 rounded-lg border border-border bg-surface hover:border-border-strong focus:border-accent focus:outline-none text-sm transition">
                                 <option value="">Alle Kategorien</option>

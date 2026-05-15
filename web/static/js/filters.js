@@ -7,7 +7,13 @@ function initFilters() {
         App.state.filters.date = e.target.value;
         applyFilters();
     });
-    
+
+    // Time-of-day filter
+    document.getElementById('time-filter')?.addEventListener('change', (e) => {
+        App.state.filters.timeOfDay = e.target.value;
+        applyFilters();
+    });
+
     // Venue-amenity filter
     document.getElementById('category-filter').addEventListener('change', (e) => {
         App.state.filters.category = e.target.value;
@@ -70,6 +76,7 @@ function resetFilters() {
     App.state.filters = {
         search: '',
         date: '',
+        timeOfDay: '',
         category: '',
         eventCategory: '',
         bikeRoute: false
@@ -78,6 +85,8 @@ function resetFilters() {
     // Reset UI
     document.getElementById('search-input').value = '';
     document.getElementById('date-filter').value = '';
+    const timeFilter = document.getElementById('time-filter');
+    if (timeFilter) timeFilter.value = '';
     document.getElementById('category-filter').value = '';
     const ecFilter = document.getElementById('event-category-filter');
     if (ecFilter) ecFilter.value = '';

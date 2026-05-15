@@ -49,7 +49,7 @@ function loadCalendar() {
 
 // Apply current filter state to events for calendar rendering
 function filterEventsForCalendar() {
-    const { search, date, category, eventCategory, bikeRoute } = App.state.filters;
+    const { search, date, timeOfDay, category, eventCategory, bikeRoute } = App.state.filters;
     const searchLower = search ? search.toLowerCase() : '';
 
     const venuesById = new Map(App.data.venues.map(v => [v.id, v]));
@@ -59,6 +59,9 @@ function filterEventsForCalendar() {
 
         // Date filter
         if (date && event.date !== date) return false;
+
+        // Time-of-day filter (drops events without startTime when active)
+        if (!eventInTimeBucket(event, timeOfDay)) return false;
 
         // Bike route filter — venue must be on a bike route
         if (bikeRoute && (!venue || !venue.bikeRoute)) return false;
