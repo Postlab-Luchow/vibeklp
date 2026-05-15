@@ -526,6 +526,10 @@ async function _renderVenueModal(venueId) {
                 if (!hay.includes(searchFilter)) return false;
             }
             return true;
+        }).sort((a, b) => {
+            const dateCmp = (a.date || '').localeCompare(b.date || '');
+            if (dateCmp !== 0) return dateCmp;
+            return (a.startTime || '').localeCompare(b.startTime || '');
         });
         const isEventsFiltered = (dateFilter || searchFilter || eventCategoryFilter) && venueEvents.length !== allVenueEvents.length;
         const eventsHeading = dateFilter
