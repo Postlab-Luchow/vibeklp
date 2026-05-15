@@ -51,6 +51,15 @@ func main() {
 		staticHandler.ServeHTTP(w, r)
 	}))
 
+	// Serve the service worker from origin root so its scope covers the
+	// whole site. no-cache forces the browser to check for an updated SW
+	// on every page load — otherwise users get stuck on old SW versions.
+	router.HandleFunc("/sw.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+		w.Header().Set("Content-Type", "application/javascript")
+		http.ServeFile(w, r, filepath.Join(*staticDir, "sw.js"))
+	})
+
 	// Serve index.html for root
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		indexPath := filepath.Join(*templatesDir, "index.html")

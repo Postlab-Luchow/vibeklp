@@ -99,6 +99,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// Register the service worker for aggressive caching (offline tiles + API).
+// The browser only allows registration on HTTPS or localhost/127.0.0.1, so
+// there's no extra guard here. During development on localhost, use DevTools
+// → Application → Service Workers → "Bypass for network" / "Update on reload"
+// if you need fresh JS/CSS without bumping VERSION in sw.js.
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.warn('SW registration failed:', err);
+        });
+    });
+}
+
 // Load Data from API with retry logic
 async function loadData(retryCount = 0) {
     console.log('Loading data from API...');
