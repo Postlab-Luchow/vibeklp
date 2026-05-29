@@ -1,0 +1,33 @@
+{
+  "venues": [
+    {
+      "id": "venue-4044317c59e8f143",
+      "name": "SCHLANZE",
+      "description": "Jörn (Bif) Ebersbach",
+      "address": {
+        "street": "Schlanze 2",
+        "postalCode": "29496",
+        "city": "Waddeweitz"
+      },
+      "coordinates": {
+        "lat": 52.979339,
+        "lng": 10.9805823
+      },
+      "contact": {},
+      "categories": [
+        {
+          "name": "Café (Kuchen, Getränke)",
+          "dates": ["2026-05-14", "2026-05-15"]
+        },
+        {
+          "name": "WC"
+        }
+      ],
+      "bikeRoute": "5",
+      "source": "klp",
+      "eventCount": 14,
+      "exhibitionCount": 5
+    }
+  ],
+  "total": 1
+}

@@ -1,0 +1,10 @@
+# Configures json_serializable codegen. explicit_to_json ensures nested
+# model objects (Address, Coordinates, Contact, VenueCategory) serialize to
+# Maps when the parent's toJson() is called — without it, toJson leaves nested
+# objects as instances, breaking JSON round-trips and (later) on-disk caching.
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          explicit_to_json: true
