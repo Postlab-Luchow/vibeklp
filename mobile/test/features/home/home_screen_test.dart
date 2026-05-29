@@ -5,7 +5,6 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:klp_guide/features/home/home_screen.dart';
 import 'package:klp_guide/models/venue.dart';
-import 'package:klp_guide/providers/venues_provider.dart';
 import 'package:klp_guide/repositories/venue_repo.dart';
 
 class MockVenueRepository extends Mock implements VenueRepository {}

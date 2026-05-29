@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'features/home/home_screen.dart';
+
 class KlpGuideApp extends StatelessWidget {
   const KlpGuideApp({super.key});
 
@@ -9,9 +11,7 @@ class KlpGuideApp extends StatelessWidget {
       title: 'KLP-Guide',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.deepOrange),
-      home: const Scaffold(
-        body: Center(child: Text('KLP-Guide bootstraps.')),
-      ),
+      home: const HomeScreen(),
     );
   }
 }
