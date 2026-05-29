@@ -23,7 +23,9 @@ void main() {
 
   test('fetchAll returns parsed venues on 200', () async {
     const fixturePath = 'test/fixtures/venues_response_sample.json';
-    final body = jsonDecode(File(fixturePath).readAsStringSync()) as Map<String, dynamic>;
+    final body =
+        jsonDecode(File(fixturePath).readAsStringSync())
+            as Map<String, dynamic>;
 
     when(() => dio.get<Map<String, dynamic>>('/api/venues')).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(

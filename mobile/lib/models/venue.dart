@@ -33,17 +33,17 @@ class Address with _$Address {
     @Default('') String city,
   }) = _Address;
 
-  factory Address.fromJson(Map<String, dynamic> json) => _$AddressFromJson(json);
+  factory Address.fromJson(Map<String, dynamic> json) =>
+      _$AddressFromJson(json);
 }
 
 @freezed
 class Coordinates with _$Coordinates {
-  const factory Coordinates({
-    required double lat,
-    required double lng,
-  }) = _Coordinates;
+  const factory Coordinates({required double lat, required double lng}) =
+      _Coordinates;
 
-  factory Coordinates.fromJson(Map<String, dynamic> json) => _$CoordinatesFromJson(json);
+  factory Coordinates.fromJson(Map<String, dynamic> json) =>
+      _$CoordinatesFromJson(json);
 }
 
 @freezed
@@ -54,7 +54,8 @@ class Contact with _$Contact {
     @Default('') String website,
   }) = _Contact;
 
-  factory Contact.fromJson(Map<String, dynamic> json) => _$ContactFromJson(json);
+  factory Contact.fromJson(Map<String, dynamic> json) =>
+      _$ContactFromJson(json);
 }
 
 @freezed
@@ -64,5 +65,6 @@ class VenueCategory with _$VenueCategory {
     @Default(<String>[]) List<String> dates,
   }) = _VenueCategory;
 
-  factory VenueCategory.fromJson(Map<String, dynamic> json) => _$VenueCategoryFromJson(json);
+  factory VenueCategory.fromJson(Map<String, dynamic> json) =>
+      _$VenueCategoryFromJson(json);
 }

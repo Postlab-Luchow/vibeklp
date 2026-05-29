@@ -9,9 +9,12 @@ void main() {
     late Map<String, dynamic> sampleVenueJson;
 
     setUpAll(() {
-      final raw = File('test/fixtures/venues_response_sample.json').readAsStringSync();
+      final raw = File(
+        'test/fixtures/venues_response_sample.json',
+      ).readAsStringSync();
       final envelope = jsonDecode(raw) as Map<String, dynamic>;
-      sampleVenueJson = (envelope['venues'] as List).first as Map<String, dynamic>;
+      sampleVenueJson =
+          (envelope['venues'] as List).first as Map<String, dynamic>;
     });
 
     test('parses required scalar fields', () {

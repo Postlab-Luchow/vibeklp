@@ -32,10 +32,7 @@ class _VenueList extends StatelessWidget {
       itemCount: venues.length,
       itemBuilder: (context, index) {
         final v = venues[index];
-        return ListTile(
-          title: Text(v.name),
-          subtitle: Text(v.address.city),
-        );
+        return ListTile(title: Text(v.name), subtitle: Text(v.address.city));
       },
     );
   }

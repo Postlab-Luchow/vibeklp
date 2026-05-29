@@ -22,7 +22,10 @@ void main() {
   testWidgets('shows progress indicator while loading', (tester) async {
     final repo = MockVenueRepository();
     when(repo.fetchAll).thenAnswer(
-      (_) => Future<List<Venue>>.delayed(const Duration(milliseconds: 200), () => []),
+      (_) => Future<List<Venue>>.delayed(
+        const Duration(milliseconds: 200),
+        () => [],
+      ),
     );
 
     await _pumpHome(tester, repo);
@@ -61,7 +64,9 @@ void main() {
 
   testWidgets('shows error message when fetch fails', (tester) async {
     final repo = MockVenueRepository();
-    when(repo.fetchAll).thenAnswer((_) async => throw StateError('network down'));
+    when(
+      repo.fetchAll,
+    ).thenAnswer((_) async => throw StateError('network down'));
 
     await _pumpHome(tester, repo);
     await tester.pumpAndSettle();
